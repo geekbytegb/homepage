@@ -71,6 +71,10 @@ function safeHttpUrl(value: string) {
     return null;
   }
 }
+function safeImageUrl(value: string) {
+  const url = safeHttpUrl(value);
+  return url?.startsWith("https://") ? url : null;
+}
 const emptyEditors: Record<
   Exclude<CollectionName, "applications">,
   Record<string, unknown>
@@ -89,6 +93,8 @@ const emptyEditors: Record<
     description: "",
     url: "",
     status: "준비 중",
+    imageUrl: "",
+    imageAlt: "",
     published: false,
   },
   events: {
@@ -232,6 +238,16 @@ function App() {
         .sort((a, b) => a.order - b.order),
     [history.items],
   );
+  const groupedHistory = useMemo(() => {
+    const groups: { year: string; items: HistoryItem[] }[] = [];
+    visibleHistory.forEach((item) => {
+      const year = item.year.trim();
+      const group = groups.find((candidate) => candidate.year === year);
+      if (group) group.items.push(item);
+      else groups.push({ year, items: [item] });
+    });
+    return groups;
+  }, [visibleHistory]);
   const visibleNotices = useMemo(
     () =>
       notices.items
@@ -624,16 +640,24 @@ function App() {
                       팀의 새로운 발자취를 곧 전하겠습니다.
                     </p>
                   )}
-                  {visibleHistory.map((item, i) => (
-                    <article className="history-card" key={item.id}>
-                      <span className="history-index">
-                        {item.year || String(i + 1).padStart(2, "0")}
-                      </span>
-                      <div className="history-line">
-                        <span />
+                  {groupedHistory.map((group, i) => (
+                    <article className="history-row" key={`${group.year}-${i}`}>
+                      <div className="history-row-heading">
+                        <span className="history-index">
+                          {group.year || String(i + 1).padStart(2, "0")}
+                        </span>
+                        <div className="history-line">
+                          <span />
+                        </div>
                       </div>
-                      <h3>{item.title}</h3>
-                      <p>{item.description}</p>
+                      <div className="history-row-items">
+                        {group.items.map((item) => (
+                          <section className="history-card" key={item.id}>
+                            <h3>{item.title}</h3>
+                            <p>{item.description}</p>
+                          </section>
+                        ))}
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -662,9 +686,27 @@ function App() {
                   {visibleProducts.length ? (
                     visibleProducts.map((item, i) => (
                       <article className="product-card" key={item.id}>
-                        <div className="product-art">
-                          <span className="product-art-number">0{i + 1}</span>
-                          <div className="abstract-shape" />
+                        <div
+                          className={
+                            safeImageUrl(item.imageUrl || "")
+                              ? "product-art has-product-image"
+                              : "product-art"
+                          }
+                        >
+                          {safeImageUrl(item.imageUrl || "") ? (
+                            <img
+                              src={safeImageUrl(item.imageUrl || "")!}
+                              alt={item.imageAlt || item.name}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <>
+                              <span className="product-art-number">
+                                0{i + 1}
+                              </span>
+                              <div className="abstract-shape" />
+                            </>
+                          )}
                           <span className="product-status">{item.status}</span>
                         </div>
                         <div className="product-meta">
@@ -1321,14 +1363,25 @@ function AdminPanel(props: AdminProps) {
     void _id;
     setSaving(true);
     try {
+      if (
+        name === "products" &&
+        value.imageUrl &&
+        !safeImageUrl(String(value.imageUrl))
+      ) {
+        throw new Error("INVALID_IMAGE_URL");
+      }
       await onSaveEntry(
         name,
         value,
         editingId === "new" ? undefined : editingId || undefined,
       );
       setEditingId(null);
-    } catch {
-      setMessage("저장에 실패했습니다. 입력값과 권한을 확인해 주세요.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error && error.message === "INVALID_IMAGE_URL"
+          ? "이미지는 https://로 시작하는 주소를 입력해 주세요."
+          : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
+      );
     } finally {
       setSaving(false);
     }
@@ -1663,6 +1716,24 @@ function AdminPanel(props: AdminProps) {
                     {textField("description", "설명", true, true)}
                     {textField("url", "외부 링크 (선택)")}
                     {textField("status", "상태")}
+                    {textField("imageUrl", "이미지 URL (HTTPS)")}
+                    <label className="product-image-field">
+                      이미지 미리보기
+                      {safeImageUrl(String(entryDraft.imageUrl || "")) ? (
+                        <img
+                          className="product-image-preview"
+                          src={safeImageUrl(String(entryDraft.imageUrl || ""))!}
+                          alt={String(
+                            entryDraft.imageAlt || "제품 이미지 미리보기",
+                          )}
+                        />
+                      ) : (
+                        <span className="product-image-empty">
+                          HTTPS 이미지 주소를 입력하면 여기에 표시됩니다.
+                        </span>
+                      )}
+                    </label>
+                    {textField("imageAlt", "이미지 설명 (접근성)")}
                   </>
                 )}
                 {tab === "events" && (

@@ -41,6 +41,8 @@ export type Product = Entry & {
   description: string;
   url: string;
   status: string;
+  imageUrl: string;
+  imageAlt: string;
 };
 export type Event = Entry & {
   title: string;
