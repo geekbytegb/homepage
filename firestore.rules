@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function admin() { return signedIn() && request.auth.token.get('admin', false) == true; }
+    function publicOrAdmin() { return admin() || resource.data.published == true; }
+    function privacyReady() {
+      return exists(/databases/$(database)/documents/site/privacy)
+        && get(/databases/$(database)/documents/site/privacy).data.published == true
+        && get(/databases/$(database)/documents/site/privacy).data.operator is string
+        && get(/databases/$(database)/documents/site/privacy).data.operator.size() > 0
+        && get(/databases/$(database)/documents/site/privacy).data.contact is string
+        && get(/databases/$(database)/documents/site/privacy).data.contact.size() > 0
+        && get(/databases/$(database)/documents/site/privacy).data.retention is string
+        && get(/databases/$(database)/documents/site/privacy).data.retention.size() > 0
+        && get(/databases/$(database)/documents/site/privacy).data.body is string
+        && get(/databases/$(database)/documents/site/privacy).data.body.size() > 0;
+    }
+
+    match /site/{documentId} {
+      allow read: if documentId == 'overview' || (documentId == 'privacy' && resource.data.published == true) || admin();
+      allow write: if admin();
+    }
+    match /history/{itemId} {
+      allow read: if publicOrAdmin();
+      allow write: if admin();
+    }
+    match /notices/{itemId} {
+      allow read: if publicOrAdmin();
+      allow write: if admin();
+    }
+    match /products/{itemId} {
+      allow read: if publicOrAdmin();
+      allow write: if admin();
+    }
+    match /events/{eventId} {
+      allow read: if publicOrAdmin();
+      allow write: if admin();
+    }
+    match /applications/{applicationId} {
+      allow read: if admin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn()
+        && applicationId == request.auth.uid + '_' + request.resource.data.eventId
+        && request.resource.data.keys().hasOnly(['userId', 'eventId', 'name', 'email', 'phone', 'motivation', 'consent', 'status', 'createdAt'])
+        && request.resource.data.keys().hasAll(['userId', 'eventId', 'name', 'email', 'phone', 'motivation', 'consent', 'status', 'createdAt'])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.eventId is string
+        && request.resource.data.eventId.size() > 0
+        && request.resource.data.eventId.size() < 120
+        && exists(/databases/$(database)/documents/events/$(request.resource.data.eventId))
+        && privacyReady()
+        && get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.published == true
+        && get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.registrationOpen == true
+        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 80
+        && request.resource.data.email is string && request.resource.data.email.size() > 3 && request.resource.data.email.size() <= 254
+        && request.resource.data.phone is string && request.resource.data.phone.size() >= 8 && request.resource.data.phone.size() <= 30
+        && request.resource.data.motivation is string && request.resource.data.motivation.size() <= 1000
+        && request.resource.data.consent == true
+        && request.resource.data.status == 'new'
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if admin();
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
