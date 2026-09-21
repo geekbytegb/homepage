@@ -531,8 +531,24 @@ button:disabled {
 .history-grid {
   display: flex;
   flex-direction: column;
-  gap: 46px;
+  gap: 0;
   margin-top: 62px;
+  position: relative;
+}
+.history-grid::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  bottom: 12px;
+  left: 145px;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    #768bff,
+    #353946 18%,
+    #353946 82%,
+    transparent
+  );
 }
 .history-empty {
   grid-column: 1 / -1;
@@ -542,38 +558,50 @@ button:disabled {
 }
 .history-row {
   display: grid;
-  grid-template-columns: minmax(120px, 0.22fr) 1fr;
-  gap: 28px;
+  grid-template-columns: 120px 1fr;
+  gap: 52px;
+  padding-bottom: 54px;
+  position: relative;
+}
+.history-row:last-child {
+  padding-bottom: 0;
 }
 .history-row-heading {
   min-width: 0;
+  position: relative;
 }
 .history-row-items {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
 }
 .history-card {
-  min-height: 150px;
-  padding-left: 22px;
-  border-left: 1px solid #353946;
+  min-height: 0;
+  padding: 0 0 25px;
+  border-bottom: 1px solid #2e323e;
+}
+.history-card:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 .history-index {
   font-family: "DM Sans", sans-serif;
   color: #768bff;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   letter-spacing: 0.05em;
 }
 .history-line {
+  position: absolute;
+  top: 10px;
+  right: -52px;
+  width: 31px;
   height: 1px;
-  background: #353946;
-  margin: 24px 0 0;
-  position: relative;
+  background: #768bff;
 }
 .history-line span {
   position: absolute;
-  left: 0;
+  right: -5px;
   top: -4px;
   height: 9px;
   width: 9px;
@@ -581,12 +609,12 @@ button:disabled {
   background: #768bff;
 }
 .history-card h3 {
-  font-size: 24px;
+  font-size: 23px;
   letter-spacing: -0.055em;
   margin: 0 0 13px;
 }
 .history-card p {
-  max-width: 310px;
+  max-width: 760px;
   font-size: 14px;
   color: #9297a7;
   line-height: 1.75;
@@ -1631,21 +1659,33 @@ button:disabled {
   }
   .history-grid {
     margin-top: 35px;
-    gap: 32px;
+    padding-left: 29px;
+  }
+  .history-grid::before {
+    top: 8px;
+    bottom: 8px;
+    left: 4px;
   }
   .history-row {
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 17px;
+    padding-bottom: 39px;
   }
   .history-row-items {
-    grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 22px;
   }
   .history-card {
     min-height: 0;
   }
   .history-line {
-    margin: 17px 0 0;
+    top: 9px;
+    right: auto;
+    left: -29px;
+    width: 22px;
+  }
+  .history-line span {
+    right: auto;
+    left: -4px;
   }
   .history-card p {
     margin-bottom: 22px;
