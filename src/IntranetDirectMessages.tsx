@@ -26,6 +26,7 @@ import type {
   DirectMessage,
   MemberIdentity,
 } from "./types";
+import { useMessageUnread } from "./useMessageUnread";
 
 function messageTime(message: DirectMessage) {
   const date = message.createdAt?.toDate?.();
@@ -40,10 +41,14 @@ function messageTime(message: DirectMessage) {
 export function IntranetDirectMessages({
   user,
   displayName,
+  active = true,
+  onUnreadCountChange,
   embedded = false,
 }: {
   user: User;
   displayName: string;
+  active?: boolean;
+  onUnreadCountChange?: (count: number) => void;
   embedded?: boolean;
 }) {
   const [identities, setIdentities] = useState<MemberIdentity[]>([]);
@@ -56,6 +61,20 @@ export function IntranetDirectMessages({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const ownName = displayName;
+  const conversationIds = useMemo(
+    () => conversations.map((conversation) => conversation.id),
+    [conversations],
+  );
+  const unreadIds = useMessageUnread(
+    user.uid,
+    "direct",
+    conversationIds,
+    active ? selectedId : "",
+  );
+
+  useEffect(() => {
+    onUnreadCountChange?.(unreadIds.size);
+  }, [onUnreadCountChange, unreadIds.size]);
 
   useEffect(() => {
     if (!db) return;
@@ -243,6 +262,14 @@ export function IntranetDirectMessages({
                       {hasConversation ? "대화 계속하기" : "새 대화"}
                     </small>
                   </span>
+                  {unreadIds.has(conversationId) && (
+                    <em
+                      className="messenger-unread-badge"
+                      aria-label="읽지 않음"
+                    >
+                      새 메시지
+                    </em>
+                  )}
                 </button>
               );
             })

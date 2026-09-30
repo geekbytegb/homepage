@@ -434,6 +434,24 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
       allow delete: if member() && identityId == request.auth.uid;
     }
+    match /messageReadStates/{readId} {
+      allow read: if member() && resource.data.userId == request.auth.uid;
+      allow create, update: if member()
+        && readId == request.auth.uid + '_' + request.resource.data.scope + '_' + request.resource.data.targetId
+        && request.resource.data.keys().hasOnly([
+          'userId', 'scope', 'targetId', 'readAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'userId', 'scope', 'targetId', 'readAt'
+        ])
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.scope in ['group', 'direct']
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && request.resource.data.targetId.size() <= 200
+        && request.resource.data.readAt == request.time;
+      allow delete: if member() && resource.data.userId == request.auth.uid;
+    }
     match /directConversations/{conversationId} {
       allow read: if admin()
         || (member() && request.auth.uid in resource.data.participants);

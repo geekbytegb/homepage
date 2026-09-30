@@ -2827,7 +2827,7 @@ button.admin-dashboard-row:hover {
 }
 .chat-channel-rail > button {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 9px;
   width: 100%;
   margin-bottom: 4px;
@@ -3120,7 +3120,7 @@ button.admin-dashboard-row:hover {
 }
 .dm-contact-list > button {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
   width: 100%;
@@ -3167,6 +3167,18 @@ button.admin-dashboard-row:hover {
   color: #697184;
   font-size: 10px;
   line-height: 1.6;
+}
+.messenger-unread-badge {
+  align-self: center;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #7184ff;
+  color: #fff;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .dm-main {
   display: grid;

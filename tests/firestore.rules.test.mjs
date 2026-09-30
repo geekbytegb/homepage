@@ -433,6 +433,19 @@ test("published chat channels support secure member group messaging", async () =
       createdAt: serverTimestamp(),
     }),
   );
+  const readState = doc(
+    member,
+    "messageReadStates",
+    "chat-member_group_general",
+  );
+  await assertSucceeds(
+    setDoc(readState, {
+      userId: "chat-member",
+      scope: "group",
+      targetId: "general",
+      readAt: serverTimestamp(),
+    }),
+  );
   await assertFails(
     setDoc(doc(member, "chatChannels", "general", "messages", "spoof"), {
       authorUid: "chat-member",
@@ -471,6 +484,15 @@ test("published chat channels support secure member group messaging", async () =
     .firestore();
   await assertFails(
     deleteDoc(doc(other, "chatChannels", "general", "messages", "one")),
+  );
+  await assertFails(getDoc(doc(other, "messageReadStates", readState.id)));
+  await assertFails(
+    setDoc(doc(other, "messageReadStates", readState.id), {
+      userId: "chat-member",
+      scope: "group",
+      targetId: "general",
+      readAt: serverTimestamp(),
+    }),
   );
   await assertSucceeds(deleteDoc(message));
   const admin = environment

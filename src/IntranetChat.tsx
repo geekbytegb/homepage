@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { db } from "./firebase";
 import type { ChatChannel } from "./types";
+import { useMessageUnread } from "./useMessageUnread";
 
 type ChatMessage = {
   id: string;
@@ -57,14 +58,18 @@ export function IntranetChat({
   user,
   displayName,
   isAdmin,
+  active = true,
   onManageChannels,
+  onUnreadCountChange,
   embedded = false,
 }: {
   channels: ChatChannel[];
   user: User;
   displayName: string;
   isAdmin: boolean;
+  active?: boolean;
   onManageChannels: () => void;
+  onUnreadCountChange?: (count: number) => void;
   embedded?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState("");
@@ -74,6 +79,20 @@ export function IntranetChat({
   const [sending, setSending] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
+  const channelIds = useMemo(
+    () => channels.map((channel) => channel.id),
+    [channels],
+  );
+  const unreadIds = useMessageUnread(
+    user.uid,
+    "group",
+    channelIds,
+    active ? selectedId : "",
+  );
+
+  useEffect(() => {
+    onUnreadCountChange?.(unreadIds.size);
+  }, [onUnreadCountChange, unreadIds.size]);
 
   useEffect(() => {
     if (!channels.some((channel) => channel.id === selectedId)) {
@@ -193,6 +212,14 @@ export function IntranetChat({
                       <small>{channel.description}</small>
                     )}
                   </span>
+                  {unreadIds.has(channel.id) && (
+                    <em
+                      className="messenger-unread-badge"
+                      aria-label="읽지 않음"
+                    >
+                      새 메시지
+                    </em>
+                  )}
                 </button>
               );
             })
