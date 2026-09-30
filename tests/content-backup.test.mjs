@@ -112,6 +112,47 @@ test("backup parser rejects malformed fields and oversized restores", () => {
   );
 });
 
+test("backup parser rejects unsafe links and unexpected content fields", () => {
+  const unsafe = validBackup();
+  unsafe.intranetContent.resources.push({
+    id: "handbook",
+    published: true,
+    title: "Handbook",
+    description: "Internal handbook",
+    category: "Policy",
+    url: "http://example.com/handbook",
+  });
+  assert.throws(
+    () => parseContentBackup(JSON.stringify(unsafe)),
+    /필수 HTTPS 주소/,
+  );
+
+  const unexpected = validBackup();
+  unexpected.intranetContent.profiles.push({
+    ...profile("member"),
+    admin: true,
+  });
+  assert.throws(
+    () => parseContentBackup(JSON.stringify(unexpected)),
+    /허용되지 않은 admin 필드/,
+  );
+});
+
+test("backup parser rejects an incomplete published privacy notice", () => {
+  const backup = validBackup();
+  backup.site.privacy = {
+    published: true,
+    operator: "Geek Byte",
+    contact: "contact@example.com",
+    retention: "1 year",
+    body: "임시",
+  };
+  assert.throws(
+    () => parseContentBackup(JSON.stringify(backup)),
+    /80자 이상의 전문/,
+  );
+});
+
 test("backup parser rejects an invalid export timestamp", () => {
   const backup = validBackup();
   backup.exportedAt = "not-a-date";

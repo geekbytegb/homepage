@@ -62,6 +62,79 @@ function requireBackupField(
     throw new Error(`${label}의 ${key} 값이 올바르지 않습니다.`);
 }
 
+function validateRecordConstraints(
+  item: Record<string, unknown>,
+  label: string,
+  allowedFields: string[],
+  stringLimits: Record<string, number>,
+  options: {
+    optionalHttps?: string[];
+    requiredHttps?: string[];
+    enums?: Record<string, string[]>;
+    numberRanges?: Record<string, [number, number]>;
+  } = {},
+) {
+  const allowed = new Set(allowedFields);
+  const unexpected = Object.keys(item).find((key) => !allowed.has(key));
+  if (unexpected)
+    throw new Error(`${label}에 허용되지 않은 ${unexpected} 필드가 있습니다.`);
+  Object.entries(stringLimits).forEach(([key, maxLength]) => {
+    const value = item[key];
+    if (typeof value === "string" && value.length > maxLength) {
+      throw new Error(`${label}의 ${key} 값은 ${maxLength}자 이하여야 합니다.`);
+    }
+  });
+  options.optionalHttps?.forEach((key) => {
+    const value = item[key];
+    if (typeof value === "string" && value && !/^https:\/\//i.test(value)) {
+      throw new Error(`${label}의 ${key} 값은 HTTPS 주소여야 합니다.`);
+    }
+  });
+  options.requiredHttps?.forEach((key) => {
+    const value = item[key];
+    if (typeof value !== "string" || !/^https:\/\//i.test(value)) {
+      throw new Error(`${label}의 ${key} 값은 필수 HTTPS 주소여야 합니다.`);
+    }
+  });
+  Object.entries(options.enums || {}).forEach(([key, values]) => {
+    if (!values.includes(String(item[key]))) {
+      throw new Error(`${label}의 ${key} 값이 허용 범위를 벗어났습니다.`);
+    }
+  });
+  Object.entries(options.numberRanges || {}).forEach(([key, [min, max]]) => {
+    const value = item[key];
+    if (typeof value !== "number" || value < min || value > max) {
+      throw new Error(`${label}의 ${key} 값은 ${min}~${max} 범위여야 합니다.`);
+    }
+  });
+}
+
+function validateEntriesConstraints(
+  entries: BackupEntry[],
+  label: string,
+  fields: string[],
+  stringLimits: Record<string, number>,
+  options: Parameters<typeof validateRecordConstraints>[4] = {},
+  optionalFields: string[] = ["order"],
+) {
+  entries.forEach((item, index) => {
+    const itemLabel = `${label} ${index + 1}번 항목`;
+    validateRecordConstraints(
+      item,
+      itemLabel,
+      ["id", ...fields, ...optionalFields],
+      stringLimits,
+      options,
+    );
+    if ("order" in item) {
+      const order = item.order;
+      if (typeof order !== "number" || order < 1 || order > 100000) {
+        throw new Error(`${itemLabel}의 order 값은 1~100000 범위여야 합니다.`);
+      }
+    }
+  });
+}
+
 function validateBackupPayload(payload: ContentBackupPayload) {
   ["eyebrow", "headline", "description", "mission", "email"].forEach((key) =>
     requireBackupField(payload.site.overview, key, "string", "사이트 소개"),
@@ -172,6 +245,193 @@ function validateBackupPayload(payload: ContentBackupPayload) {
     ["description", "string"],
     ["kind", "string"],
   ]);
+
+  validateRecordConstraints(
+    payload.site.overview,
+    "사이트 소개",
+    ["eyebrow", "headline", "description", "mission", "email"],
+    {
+      eyebrow: 100,
+      headline: 300,
+      description: 1000,
+      mission: 1000,
+      email: 254,
+    },
+  );
+  validateRecordConstraints(
+    payload.site.privacy,
+    "개인정보 안내",
+    ["published", "operator", "contact", "retention", "body"],
+    { operator: 100, contact: 254, retention: 200, body: 20000 },
+  );
+  if (
+    payload.site.privacy.published === true &&
+    (String(payload.site.privacy.operator).length === 0 ||
+      String(payload.site.privacy.contact).length === 0 ||
+      String(payload.site.privacy.retention).length === 0 ||
+      String(payload.site.privacy.body).length < 80)
+  ) {
+    throw new Error(
+      "게시된 개인정보 안내는 운영 주체·문의처·보유 기간과 80자 이상의 전문이 필요합니다.",
+    );
+  }
+  validateEntriesConstraints(
+    payload.publicContent.history,
+    "연혁",
+    ["published", "year", "title", "description", "order"],
+    { year: 40, title: 200, description: 5000 },
+  );
+  const noticeKeys = ["published", "title", "body", "date", "pinned"];
+  const noticeLimits = { title: 200, body: 20000, date: 40 };
+  validateEntriesConstraints(
+    payload.publicContent.notices,
+    "공지",
+    noticeKeys,
+    noticeLimits,
+    {},
+    [],
+  );
+  validateEntriesConstraints(
+    payload.intranetContent.notices,
+    "내부 공지",
+    noticeKeys,
+    noticeLimits,
+    {},
+    [],
+  );
+  validateEntriesConstraints(
+    payload.publicContent.products,
+    "제품",
+    [
+      "published",
+      "name",
+      "category",
+      "description",
+      "url",
+      "status",
+      "imageUrl",
+      "imageAlt",
+    ],
+    {
+      name: 200,
+      category: 100,
+      description: 5000,
+      url: 2048,
+      status: 100,
+      imageUrl: 2048,
+      imageAlt: 300,
+    },
+    { optionalHttps: ["url", "imageUrl"] },
+  );
+  payload.publicContent.products.forEach((item, index) => {
+    if (item.published && item.imageUrl && !String(item.imageAlt).trim()) {
+      throw new Error(
+        `제품 ${index + 1}번 항목의 게시 이미지에는 imageAlt 값이 필요합니다.`,
+      );
+    }
+  });
+  validateEntriesConstraints(
+    payload.publicContent.events,
+    "행사",
+    [
+      "published",
+      "title",
+      "category",
+      "description",
+      "schedule",
+      "format",
+      "location",
+      "capacity",
+      "registrationDeadline",
+      "registrationOpen",
+    ],
+    {
+      title: 200,
+      category: 100,
+      description: 10000,
+      schedule: 300,
+      format: 100,
+      location: 500,
+      capacity: 100,
+      registrationDeadline: 40,
+    },
+    {},
+    ["order", "registrationDeadlineAt"],
+  );
+  validateEntriesConstraints(
+    payload.intranetContent.resources,
+    "내부 자료",
+    ["published", "title", "description", "category", "url"],
+    { title: 200, description: 5000, category: 100, url: 2048 },
+    { requiredHttps: ["url"] },
+  );
+  validateEntriesConstraints(
+    payload.intranetContent.projects,
+    "프로젝트",
+    ["published", "title", "summary", "owner", "status", "progress", "url"],
+    { title: 200, summary: 10000, owner: 200, status: 20, url: 2048 },
+    {
+      optionalHttps: ["url"],
+      enums: { status: ["planning", "active", "blocked", "done"] },
+      numberRanges: { progress: [0, 100] },
+    },
+  );
+  validateEntriesConstraints(
+    payload.intranetContent.meetings,
+    "회의 기록",
+    ["published", "title", "date", "summary", "decisions", "nextActions"],
+    {
+      title: 200,
+      date: 40,
+      summary: 10000,
+      decisions: 10000,
+      nextActions: 10000,
+    },
+    {},
+    [],
+  );
+  validateEntriesConstraints(
+    payload.intranetContent.profiles,
+    "구성원 프로필",
+    ["published", "displayName", "role", "bio", "skills"],
+    { displayName: 100, role: 200, bio: 5000, skills: 2000 },
+  );
+  validateEntriesConstraints(
+    payload.intranetContent.events,
+    "내부 행사",
+    [
+      "published",
+      "title",
+      "category",
+      "description",
+      "date",
+      "startTime",
+      "endTime",
+      "location",
+      "organizer",
+      "url",
+    ],
+    {
+      title: 200,
+      category: 100,
+      description: 10000,
+      date: 40,
+      startTime: 10,
+      endTime: 10,
+      location: 500,
+      organizer: 200,
+      url: 2048,
+    },
+    { optionalHttps: ["url"] },
+  );
+  validateEntriesConstraints(
+    payload.intranetContent.channels,
+    "메신저 채널",
+    ["published", "name", "description", "kind"],
+    { name: 80, description: 1000, kind: 20 },
+    { enums: { kind: ["chat", "announcement"] } },
+    ["order", "createdAt"],
+  );
 }
 
 export function contentBackupCount(payload: ContentBackupPayload) {
