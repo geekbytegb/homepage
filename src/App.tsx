@@ -157,11 +157,26 @@ const auditActionLabels: Record<string, string> = {
   "role.delete": "계정 역할 삭제",
 };
 function registrationAvailable(event: Event) {
+  const deadline = timestampDate(event.registrationDeadlineAt);
   return (
     event.registrationOpen &&
-    Boolean(event.registrationDeadlineAt) &&
-    event.registrationDeadlineAt!.toDate().getTime() > Date.now()
+    Boolean(deadline) &&
+    deadline!.getTime() > Date.now()
   );
+}
+function timestampDate(value: unknown) {
+  if (
+    value &&
+    typeof value === "object" &&
+    "toDate" in value &&
+    typeof value.toDate === "function"
+  ) {
+    const date = value.toDate();
+    return date instanceof Date && Number.isFinite(date.getTime())
+      ? date
+      : null;
+  }
+  return null;
 }
 function displayOrder(item: Entry & { order?: number }) {
   return Number.isFinite(item.order) ? Number(item.order) : 9999;
@@ -2444,8 +2459,8 @@ function AdminPanel(props: AdminProps) {
       })
       .sort(
         (a, b) =>
-          (b.createdAt?.toDate()?.getTime() || 0) -
-          (a.createdAt?.toDate()?.getTime() || 0),
+          (timestampDate(b.createdAt)?.getTime() || 0) -
+          (timestampDate(a.createdAt)?.getTime() || 0),
       );
   }, [applicationQuery, applicationStatus, applications, events]);
   const auditActions = useMemo(
@@ -2733,7 +2748,7 @@ function AdminPanel(props: AdminProps) {
       item.phone,
       events.find((event) => event.id === item.eventId)?.title || item.eventId,
       item.motivation,
-      item.createdAt?.toDate()?.toLocaleString("ko-KR") || "",
+      timestampDate(item.createdAt)?.toLocaleString("ko-KR") || "",
     ]);
     const csv = [headings, ...rows]
       .map((row) => row.map(csvCell).join(","))
@@ -2754,7 +2769,7 @@ function AdminPanel(props: AdminProps) {
       log.actor,
       log.target,
       log.details,
-      log.createdAt?.toDate()?.toLocaleString("ko-KR") || "",
+      timestampDate(log.createdAt)?.toLocaleString("ko-KR") || "",
     ]);
     const csv = [headings, ...rows]
       .map((row) => row.map(csvCell).join(","))
@@ -2900,8 +2915,8 @@ function AdminPanel(props: AdminProps) {
                   [...applications]
                     .sort(
                       (a, b) =>
-                        (b.createdAt?.toDate()?.getTime() || 0) -
-                        (a.createdAt?.toDate()?.getTime() || 0),
+                        (timestampDate(b.createdAt)?.getTime() || 0) -
+                        (timestampDate(a.createdAt)?.getTime() || 0),
                     )
                     .slice(0, 5)
                     .map((item) => (
@@ -2948,8 +2963,9 @@ function AdminPanel(props: AdminProps) {
                         <small>{log.details}</small>
                       </span>
                       <time>
-                        {log.createdAt?.toDate().toLocaleDateString("ko-KR") ||
-                          "확인 중"}
+                        {timestampDate(log.createdAt)?.toLocaleDateString(
+                          "ko-KR",
+                        ) || "확인 중"}
                       </time>
                     </div>
                   ))
@@ -3314,8 +3330,9 @@ function AdminPanel(props: AdminProps) {
                     <div className="audit-log-meta">
                       <span>{auditActionLabels[log.action] || log.action}</span>
                       <time>
-                        {log.createdAt?.toDate().toLocaleString("ko-KR") ||
-                          "시간 확인 중"}
+                        {timestampDate(log.createdAt)?.toLocaleString(
+                          "ko-KR",
+                        ) || "시간 확인 중"}
                       </time>
                     </div>
                     <h3>{log.details}</h3>
