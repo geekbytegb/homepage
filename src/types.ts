@@ -74,6 +74,7 @@ export type Event = Entry & {
   location: string;
   capacity: string;
   registrationDeadline: string;
+  registrationDeadlineAt?: { toDate: () => Date };
   registrationOpen: boolean;
 };
 export type Application = {

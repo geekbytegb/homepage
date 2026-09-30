@@ -14,6 +14,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -38,6 +39,9 @@ before(async () => {
       title: "Event",
       published: true,
       registrationOpen: true,
+      registrationDeadlineAt: Timestamp.fromDate(
+        new Date("2099-12-31T23:59:59Z"),
+      ),
     });
     await setDoc(doc(store, "site", "privacy"), {
       published: true,
@@ -314,6 +318,22 @@ test("applicants can create only their own initial application once", async () =
     setDoc(doc(store, "applications", "student_event1"), {
       ...payload,
       status: "accepted",
+    }),
+  );
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "events", "expired-event"), {
+      title: "Expired",
+      published: true,
+      registrationOpen: true,
+      registrationDeadlineAt: Timestamp.fromDate(
+        new Date("2020-01-01T00:00:00Z"),
+      ),
+    });
+  });
+  await assertFails(
+    setDoc(doc(store, "applications", "student_expired-event"), {
+      ...payload,
+      eventId: "expired-event",
     }),
   );
   await assertSucceeds(

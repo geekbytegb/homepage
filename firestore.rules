@@ -121,6 +121,8 @@ service cloud.firestore {
         && privacyReady()
         && get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.published == true
         && get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.registrationOpen == true
+        && get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.registrationDeadlineAt is timestamp
+        && get(/databases/$(database)/documents/events/$(request.resource.data.eventId)).data.registrationDeadlineAt > request.time
         && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 80
         && request.resource.data.email is string && request.resource.data.email.size() > 3 && request.resource.data.email.size() <= 254
         && request.resource.data.phone is string && request.resource.data.phone.size() >= 8 && request.resource.data.phone.size() <= 30

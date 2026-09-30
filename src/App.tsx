@@ -18,6 +18,7 @@ import {
   limit,
   serverTimestamp,
   setDoc,
+  Timestamp,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -158,6 +159,13 @@ const auditActionLabels: Record<string, string> = {
   "role.toggle": "계정 역할 변경",
   "role.delete": "계정 역할 삭제",
 };
+function registrationAvailable(event: Event) {
+  return (
+    event.registrationOpen &&
+    Boolean(event.registrationDeadlineAt) &&
+    event.registrationDeadlineAt!.toDate().getTime() > Date.now()
+  );
+}
 
 function setMetaTag(selector: string, attribute: string, value: string) {
   const element = document.head.querySelector<HTMLMetaElement>(selector);
@@ -1432,6 +1440,7 @@ function App() {
                   {visibleEvents.length ? (
                     visibleEvents.map((event, i) => {
                       const application = applicationsByEvent.get(event.id);
+                      const canRegister = registrationAvailable(event);
                       return (
                         <article className="event-card" key={event.id}>
                           <div className="event-top">
@@ -1440,12 +1449,12 @@ function App() {
                             </span>
                             <span
                               className={
-                                event.registrationOpen
+                                canRegister
                                   ? "event-badge"
                                   : "event-badge closed"
                               }
                             >
-                              {event.registrationOpen ? "모집 중" : "모집 마감"}
+                              {canRegister ? "모집 중" : "모집 마감"}
                             </span>
                           </div>
                           <span className="event-category">
@@ -1467,14 +1476,12 @@ function App() {
                           )}
                           <button
                             className="event-button"
-                            disabled={
-                              !event.registrationOpen || Boolean(application)
-                            }
+                            disabled={!canRegister || Boolean(application)}
                             onClick={() => openApplication(event)}
                           >
                             {application
                               ? applicationStatusLabels[application.status]
-                              : event.registrationOpen
+                              : canRegister
                                 ? "행사 신청하기"
                                 : "신청 마감"}{" "}
                             {application ? (
@@ -2410,7 +2417,7 @@ function AdminPanel(props: AdminProps) {
     (item) => item.status === "new" || item.status === "reviewing",
   ).length;
   const openEvents = events.filter(
-    (item) => item.published && item.registrationOpen,
+    (item) => item.published && registrationAvailable(item),
   ).length;
   const publicContent = [history, notices, products, events]
     .flat()
@@ -2510,6 +2517,15 @@ function AdminPanel(props: AdminProps) {
       ) {
         throw new Error("INVALID_PROJECT_URL");
       }
+      if (name === "events") {
+        const deadline = String(value.registrationDeadline || "");
+        if (value.registrationOpen && !deadline) {
+          throw new Error("EVENT_DEADLINE_REQUIRED");
+        }
+        value.registrationDeadlineAt = deadline
+          ? Timestamp.fromDate(new Date(`${deadline}T23:59:59+09:00`))
+          : null;
+      }
       await onSaveEntry(
         name,
         value,
@@ -2524,7 +2540,10 @@ function AdminPanel(props: AdminProps) {
             ? "내부 자료는 https://로 시작하는 주소를 입력해 주세요."
             : error instanceof Error && error.message === "INVALID_PROJECT_URL"
               ? "프로젝트 링크는 https://로 시작하는 주소를 입력해 주세요."
-              : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
+              : error instanceof Error &&
+                  error.message === "EVENT_DEADLINE_REQUIRED"
+                ? "신청 접수를 열려면 신청 마감일을 입력해 주세요."
+                : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
       );
     } finally {
       setSaving(false);
@@ -3503,7 +3522,7 @@ function AdminPanel(props: AdminProps) {
                     {textField("format", "진행 방식 (온라인·오프라인·혼합)")}
                     {textField("location", "장소 또는 접속 안내")}
                     {textField("capacity", "정원 (선택)")}
-                    {textField("registrationDeadline", "신청 마감일 (선택)")}
+                    {textField("registrationDeadline", "신청 마감일")}
                     <label className="admin-check">
                       <input
                         type="checkbox"
