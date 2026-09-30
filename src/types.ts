@@ -97,6 +97,14 @@ export type Member = {
   memberAccess: boolean;
   updatedAt?: { toDate: () => Date };
 };
+export type AdminAuditLog = {
+  id: string;
+  action: string;
+  target: string;
+  details: string;
+  actor: string;
+  createdAt?: { toDate: () => Date };
+};
 
 export const defaultOverview: Overview = {
   eyebrow: "IDEAS INTO IMPACT",

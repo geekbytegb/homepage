@@ -10,16 +10,16 @@ import {
   type User,
 } from "firebase/auth";
 import {
-  addDoc,
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
+  orderBy,
   query,
+  limit,
   serverTimestamp,
   setDoc,
-  updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import {
   ArrowDownRight,
@@ -45,6 +45,7 @@ import {
   defaultOverview,
   defaultPrivacy,
   starterHistory,
+  type AdminAuditLog,
   type Application,
   type Event,
   type Entry,
@@ -70,7 +71,8 @@ type CollectionName =
   | "intranetProjects"
   | "intranetMeetings"
   | "applications";
-type AdminTab = "overview" | "privacy" | "members" | CollectionName;
+type AdminTab =
+  "overview" | "privacy" | "members" | "auditLogs" | CollectionName;
 const initialForm = {
   name: "",
   email: "",
@@ -277,6 +279,7 @@ function App() {
   const [savingApplication, setSavingApplication] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
   const [adminMessage, setAdminMessage] = useState("");
   const [failedProductImages, setFailedProductImages] = useState<Set<string>>(
     new Set(),
@@ -388,6 +391,28 @@ function App() {
           setPrivacy({ ...defaultPrivacy, ...snapshot.data() } as Privacy);
       },
       () => setPrivacy(defaultPrivacy),
+    );
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!db || !isAdmin) {
+      setAuditLogs([]);
+      return;
+    }
+    const auditQuery = query(
+      collection(db, "adminAuditLogs"),
+      orderBy("createdAt", "desc"),
+      limit(100),
+    );
+    return onSnapshot(
+      auditQuery,
+      (snapshot) =>
+        setAuditLogs(
+          snapshot.docs.map(
+            (item) => ({ id: item.id, ...item.data() }) as AdminAuditLog,
+          ),
+        ),
+      () => setAdminMessage("관리자 활동 기록을 불러오지 못했습니다."),
     );
   }, [isAdmin]);
 
@@ -671,15 +696,42 @@ function App() {
     }
   }
 
+  function appendAudit(
+    batch: ReturnType<typeof writeBatch>,
+    action: string,
+    target: string,
+    details: string,
+  ) {
+    if (!db) return;
+    batch.set(doc(collection(db, "adminAuditLogs")), {
+      action,
+      target,
+      details,
+      actor: user?.email || "unknown",
+      createdAt: serverTimestamp(),
+    });
+  }
+
   async function saveOverview(next: Overview) {
     if (!db) return;
-    await setDoc(doc(db, "site", "overview"), next);
+    const batch = writeBatch(db);
+    batch.set(doc(db, "site", "overview"), next);
+    appendAudit(batch, "overview.save", "site/overview", "사이트 소개 수정");
+    await batch.commit();
     setAdminMessage("소개 내용이 저장되었습니다.");
   }
 
   async function savePrivacy(next: Privacy) {
     if (!db) return;
-    await setDoc(doc(db, "site", "privacy"), next);
+    const batch = writeBatch(db);
+    batch.set(doc(db, "site", "privacy"), next);
+    appendAudit(
+      batch,
+      "privacy.save",
+      "site/privacy",
+      next.published ? "개인정보 안내 게시" : "개인정보 안내 비공개",
+    );
+    await batch.commit();
     setAdminMessage("개인정보 안내가 저장되었습니다.");
   }
 
@@ -689,8 +741,16 @@ function App() {
     id?: string,
   ) {
     if (!db) return;
-    if (id) await setDoc(doc(db, name, id), entry);
-    else await addDoc(collection(db, name), entry);
+    const reference = id ? doc(db, name, id) : doc(collection(db, name));
+    const batch = writeBatch(db);
+    batch.set(reference, entry);
+    appendAudit(
+      batch,
+      id ? "content.update" : "content.create",
+      `${name}/${reference.id}`,
+      `${name} ${id ? "수정" : "등록"}`,
+    );
+    await batch.commit();
     setAdminMessage("저장되었습니다.");
   }
 
@@ -699,7 +759,10 @@ function App() {
     id: string,
   ) {
     if (!db) return;
-    await deleteDoc(doc(db, name, id));
+    const batch = writeBatch(db);
+    batch.delete(doc(db, name, id));
+    appendAudit(batch, "content.delete", `${name}/${id}`, `${name} 삭제`);
+    await batch.commit();
     setAdminMessage("항목이 삭제되었습니다.");
   }
 
@@ -708,13 +771,29 @@ function App() {
     status: Application["status"],
   ) {
     if (!db) return;
-    await updateDoc(doc(db, "applications", item.id), { status });
+    const batch = writeBatch(db);
+    batch.update(doc(db, "applications", item.id), { status });
+    appendAudit(
+      batch,
+      "application.status",
+      `applications/${item.id}`,
+      `${item.email} 신청 상태: ${status}`,
+    );
+    await batch.commit();
     setAdminMessage("신청 상태가 변경되었습니다.");
   }
 
   async function deleteApplication(id: string) {
     if (!db) return;
-    await deleteDoc(doc(db, "applications", id));
+    const batch = writeBatch(db);
+    batch.delete(doc(db, "applications", id));
+    appendAudit(
+      batch,
+      "application.delete",
+      `applications/${id}`,
+      "행사 신청 내역 삭제",
+    );
+    await batch.commit();
     setAdminMessage("신청 내역이 삭제되었습니다.");
   }
 
@@ -725,7 +804,8 @@ function App() {
   ) {
     if (!db) return;
     const normalizedEmail = email.trim().toLocaleLowerCase("en-US");
-    await setDoc(
+    const batch = writeBatch(db);
+    batch.set(
       doc(db, "members", normalizedEmail),
       {
         email: normalizedEmail,
@@ -737,6 +817,13 @@ function App() {
       },
       { merge: true },
     );
+    appendAudit(
+      batch,
+      "role.save",
+      `members/${normalizedEmail}`,
+      `관리자 ${roles.adminAccess ? "사용" : "미사용"}, 내부자 ${roles.memberAccess ? "사용" : "미사용"}`,
+    );
+    await batch.commit();
     setAdminMessage("계정 역할이 저장되었습니다.");
   }
 
@@ -746,11 +833,19 @@ function App() {
     enabled: boolean,
   ) {
     if (!db) return;
-    await updateDoc(doc(db, "members", member.id), {
+    const batch = writeBatch(db);
+    batch.update(doc(db, "members", member.id), {
       [role]: enabled,
       active: true,
       updatedAt: serverTimestamp(),
     });
+    appendAudit(
+      batch,
+      "role.toggle",
+      `members/${member.id}`,
+      `${role === "adminAccess" ? "관리자" : "내부자"} 역할 ${enabled ? "부여" : "해제"}`,
+    );
+    await batch.commit();
     setAdminMessage(
       `${role === "adminAccess" ? "관리자" : "내부자"} 역할을 ${enabled ? "부여했습니다." : "해제했습니다."}`,
     );
@@ -758,7 +853,10 @@ function App() {
 
   async function deleteMember(id: string) {
     if (!db) return;
-    await deleteDoc(doc(db, "members", id));
+    const batch = writeBatch(db);
+    batch.delete(doc(db, "members", id));
+    appendAudit(batch, "role.delete", `members/${id}`, "계정 역할 삭제");
+    await batch.commit();
     setAdminMessage("구성원 권한을 삭제했습니다.");
   }
 
@@ -1866,6 +1964,7 @@ function App() {
           intranetMeetings={intranetMeetings.items}
           applications={applications}
           members={members}
+          auditLogs={auditLogs}
           tab={adminTab}
           setTab={setAdminTab}
           onClose={() => setActiveAdmin(false)}
@@ -1899,6 +1998,7 @@ type AdminProps = {
   intranetMeetings: IntranetMeeting[];
   applications: Application[];
   members: Member[];
+  auditLogs: AdminAuditLog[];
   tab: AdminTab;
   setTab: (tab: AdminTab) => void;
   onClose: () => void;
@@ -1944,6 +2044,7 @@ function AdminPanel(props: AdminProps) {
     intranetMeetings,
     applications,
     members,
+    auditLogs,
     tab,
     setTab,
     onClose,
@@ -1973,6 +2074,7 @@ function AdminPanel(props: AdminProps) {
   );
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [roleConfirmKey, setRoleConfirmKey] = useState<string | null>(null);
   const [applicationQuery, setApplicationQuery] = useState("");
   const [applicationStatus, setApplicationStatus] = useState<
     "all" | Application["status"]
@@ -2007,6 +2109,19 @@ function AdminPanel(props: AdminProps) {
     intranetMeetings: "회의 기록",
     applications: "행사 신청",
     members: "구성원 권한",
+    auditLogs: "활동 기록",
+  };
+  const auditActionLabels: Record<string, string> = {
+    "overview.save": "사이트 소개 수정",
+    "privacy.save": "개인정보 안내 수정",
+    "content.create": "콘텐츠 등록",
+    "content.update": "콘텐츠 수정",
+    "content.delete": "콘텐츠 삭제",
+    "application.status": "신청 상태 변경",
+    "application.delete": "신청 내역 삭제",
+    "role.save": "계정 역할 저장",
+    "role.toggle": "계정 역할 변경",
+    "role.delete": "계정 역할 삭제",
   };
   const filteredApplications = useMemo(() => {
     const term = applicationQuery.trim().toLocaleLowerCase("ko-KR");
@@ -2035,6 +2150,7 @@ function AdminPanel(props: AdminProps) {
     setTab(next);
     setEditingId(null);
     setDeletingId(null);
+    setRoleConfirmKey(null);
     setMessage("");
   }
   function startEdit(item?: Entry) {
@@ -2177,6 +2293,7 @@ function AdminPanel(props: AdminProps) {
     setSaving(true);
     try {
       await onSetMemberRole(member, role, !member[role]);
+      setRoleConfirmKey(null);
     } catch {
       setMessage("구성원 권한 변경에 실패했습니다.");
     } finally {
@@ -2489,32 +2606,67 @@ function AdminPanel(props: AdminProps) {
                         <p>{member.email}</p>
                       </div>
                       <div className="admin-row-actions">
-                        <button
-                          disabled={saving}
-                          onClick={() =>
-                            toggleMemberRole(member, "adminAccess")
-                          }
-                        >
-                          {member.adminAccess ? (
-                            <EyeOff size={17} />
-                          ) : (
-                            <Eye size={17} />
-                          )}
-                          관리자 {member.adminAccess ? "해제" : "부여"}
-                        </button>
-                        <button
-                          disabled={saving}
-                          onClick={() =>
-                            toggleMemberRole(member, "memberAccess")
-                          }
-                        >
-                          {member.memberAccess ? (
-                            <EyeOff size={17} />
-                          ) : (
-                            <Eye size={17} />
-                          )}
-                          내부자 {member.memberAccess ? "해제" : "부여"}
-                        </button>
+                        {roleConfirmKey === `admin:${member.id}` ? (
+                          <span className="admin-delete-confirm">
+                            <button
+                              className="danger"
+                              disabled={saving}
+                              onClick={() =>
+                                toggleMemberRole(member, "adminAccess")
+                              }
+                            >
+                              관리자 {member.adminAccess ? "해제" : "부여"} 확인
+                            </button>
+                            <button onClick={() => setRoleConfirmKey(null)}>
+                              취소
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            disabled={saving}
+                            onClick={() =>
+                              setRoleConfirmKey(`admin:${member.id}`)
+                            }
+                          >
+                            {member.adminAccess ? (
+                              <EyeOff size={17} />
+                            ) : (
+                              <Eye size={17} />
+                            )}
+                            관리자 {member.adminAccess ? "해제" : "부여"}
+                          </button>
+                        )}
+                        {roleConfirmKey === `member:${member.id}` ? (
+                          <span className="admin-delete-confirm">
+                            <button
+                              className="danger"
+                              disabled={saving}
+                              onClick={() =>
+                                toggleMemberRole(member, "memberAccess")
+                              }
+                            >
+                              내부자 {member.memberAccess ? "해제" : "부여"}{" "}
+                              확인
+                            </button>
+                            <button onClick={() => setRoleConfirmKey(null)}>
+                              취소
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            disabled={saving}
+                            onClick={() =>
+                              setRoleConfirmKey(`member:${member.id}`)
+                            }
+                          >
+                            {member.memberAccess ? (
+                              <EyeOff size={17} />
+                            ) : (
+                              <Eye size={17} />
+                            )}
+                            내부자 {member.memberAccess ? "해제" : "부여"}
+                          </button>
+                        )}
                         {deletingId === `member:${member.id}` ? (
                           <span className="admin-delete-confirm">
                             <button
@@ -2545,6 +2697,31 @@ function AdminPanel(props: AdminProps) {
                 <p className="admin-empty">등록된 구성원이 없습니다.</p>
               )}
             </div>
+          </div>
+        ) : tab === "auditLogs" ? (
+          <div className="admin-list audit-log-list">
+            <p className="admin-help">
+              최근 관리자 작업 100건입니다. 기록은 관리자도 수정하거나 삭제할 수
+              없습니다.
+            </p>
+            {auditLogs.length ? (
+              auditLogs.map((log) => (
+                <article className="audit-log-record" key={log.id}>
+                  <div className="audit-log-meta">
+                    <span>{auditActionLabels[log.action] || log.action}</span>
+                    <time>
+                      {log.createdAt?.toDate().toLocaleString("ko-KR") ||
+                        "시간 확인 중"}
+                    </time>
+                  </div>
+                  <h3>{log.details}</h3>
+                  <p>{log.target}</p>
+                  <small>{log.actor}</small>
+                </article>
+              ))
+            ) : (
+              <p className="admin-empty">아직 기록된 관리자 작업이 없습니다.</p>
+            )}
           </div>
         ) : tab === "applications" ? (
           <div className="admin-list">

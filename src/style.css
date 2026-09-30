@@ -1601,6 +1601,41 @@ select:focus-visible {
   background: rgba(91, 113, 224, 0.18);
   color: #c9d2ff;
 }
+.audit-log-list {
+  max-width: 900px;
+}
+.audit-log-record {
+  padding: 19px 21px;
+  border: 1px solid #343b4c;
+  background: #191e29;
+}
+.audit-log-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: #8395ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.audit-log-meta time {
+  color: #798294;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.audit-log-record h3 {
+  margin: 10px 0 6px;
+  font-size: 15px;
+}
+.audit-log-record p,
+.audit-log-record small {
+  color: #858e9f;
+  font-size: 11px;
+}
+.audit-log-record p {
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
 .intranet-section {
   min-height: calc(100vh - 78px);
   padding-top: 105px;

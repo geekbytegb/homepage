@@ -14,6 +14,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
 } from "firebase/firestore";
 
@@ -193,6 +194,34 @@ test("directory administrator and intranet member roles stay independent", async
       published: true,
     }),
   );
+});
+
+test("admin audit logs are append-only and hidden from members", async () => {
+  const admin = environment
+    .authenticatedContext("audit-admin", {
+      admin: true,
+      email: "root@example.com",
+    })
+    .firestore();
+  const reference = doc(admin, "adminAuditLogs", "audit-entry");
+  await assertSucceeds(
+    setDoc(reference, {
+      action: "content.update",
+      target: "notices/published",
+      details: "공지 수정",
+      actor: "root@example.com",
+      createdAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(updateDoc(reference, { details: "변조" }));
+  await assertFails(deleteDoc(reference));
+  const member = environment
+    .authenticatedContext("audit-member", {
+      member: true,
+      email: "member@example.com",
+    })
+    .firestore();
+  await assertFails(getDoc(doc(member, "adminAuditLogs", "audit-entry")));
 });
 
 test("only an admin can delete application records", async () => {
