@@ -85,7 +85,7 @@ export function IntranetChat({
     () => channels.map((channel) => channel.id),
     [channels],
   );
-  const unreadIds = useMessageUnread(
+  const { latestActivity, unreadIds } = useMessageUnread(
     user.uid,
     "group",
     channelIds,
@@ -211,6 +211,7 @@ export function IntranetChat({
           {channels.length ? (
             channels.map((channel) => {
               const Icon = channel.kind === "announcement" ? Megaphone : Hash;
+              const latest = latestActivity[channel.id];
               return (
                 <button
                   className={selectedId === channel.id ? "selected" : ""}
@@ -221,8 +222,12 @@ export function IntranetChat({
                   <Icon size={16} />
                   <span>
                     <strong>{channel.name}</strong>
-                    {channel.description && (
-                      <small>{channel.description}</small>
+                    {(latest?.text || channel.description) && (
+                      <small>
+                        {latest?.text
+                          ? `${latest.authorName}: ${latest.text}`
+                          : channel.description}
+                      </small>
                     )}
                   </span>
                   {unreadIds.has(channel.id) && (

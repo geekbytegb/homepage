@@ -81,7 +81,7 @@ export function IntranetDirectMessages({
     () => conversations.map((conversation) => conversation.id),
     [conversations],
   );
-  const unreadIds = useMessageUnread(
+  const { latestActivity, unreadIds } = useMessageUnread(
     user.uid,
     "direct",
     conversationIds,
@@ -170,8 +170,21 @@ export function IntranetDirectMessages({
           (!term ||
             identity.displayName.toLocaleLowerCase("ko-KR").includes(term)),
       )
-      .sort((a, b) => a.displayName.localeCompare(b.displayName, "ko-KR"));
-  }, [contactQuery, identities, user.uid]);
+      .sort((a, b) => {
+        const aId = [user.uid, a.uid].sort().join("--");
+        const bId = [user.uid, b.uid].sort().join("--");
+        const unreadDifference =
+          Number(unreadIds.has(bId)) - Number(unreadIds.has(aId));
+        if (unreadDifference) return unreadDifference;
+        const activityDifference =
+          (latestActivity[bId]?.createdAt || 0) -
+          (latestActivity[aId]?.createdAt || 0);
+        return (
+          activityDifference ||
+          a.displayName.localeCompare(b.displayName, "ko-KR")
+        );
+      });
+  }, [contactQuery, identities, latestActivity, unreadIds, user.uid]);
   const identityMap = useMemo(
     () => new Map(identities.map((identity) => [identity.uid, identity])),
     [identities],
@@ -279,6 +292,7 @@ export function IntranetDirectMessages({
               const hasConversation = conversations.some(
                 (item) => item.id === conversationId,
               );
+              const latest = latestActivity[conversationId];
               return (
                 <button
                   className={selectedId === conversationId ? "selected" : ""}
@@ -292,7 +306,8 @@ export function IntranetDirectMessages({
                   <span>
                     <strong>{contact.displayName}</strong>
                     <small>
-                      {hasConversation ? "대화 계속하기" : "새 대화"}
+                      {latest?.text ||
+                        (hasConversation ? "대화 계속하기" : "새 대화")}
                     </small>
                   </span>
                   {unreadIds.has(conversationId) && (

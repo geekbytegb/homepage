@@ -17,6 +17,11 @@ type ReadState = {
   targetId: string;
   readAt?: { toDate: () => Date };
 };
+export type MessageActivity = {
+  authorName: string;
+  createdAt: number;
+  text: string;
+};
 
 function timestampMillis(value?: { toDate: () => Date }) {
   const date = value?.toDate?.();
@@ -32,7 +37,9 @@ export function useMessageUnread(
   activeId: string,
 ) {
   const [readTimes, setReadTimes] = useState<Record<string, number>>({});
-  const [latestTimes, setLatestTimes] = useState<Record<string, number>>({});
+  const [latestActivity, setLatestActivity] = useState<
+    Record<string, MessageActivity>
+  >({});
   const targetKey = JSON.stringify([...targetIds].sort());
   const stableTargetIds = useMemo<string[]>(
     () => JSON.parse(targetKey),
@@ -58,7 +65,7 @@ export function useMessageUnread(
 
   useEffect(() => {
     if (!db) return;
-    setLatestTimes((current) =>
+    setLatestActivity((current) =>
       Object.fromEntries(
         Object.entries(current).filter(([id]) => stableTargetIds.includes(id)),
       ),
@@ -71,12 +78,25 @@ export function useMessageUnread(
       return onSnapshot(
         query(messages, orderBy("createdAt", "desc"), limit(1)),
         (snapshot) => {
-          const createdAt = snapshot.docs[0]?.data().createdAt as
-            { toDate: () => Date } | undefined;
-          setLatestTimes((current) => ({
-            ...current,
-            [targetId]: timestampMillis(createdAt),
-          }));
+          const data = snapshot.docs[0]?.data();
+          setLatestActivity((current) => {
+            if (!data) {
+              const next = { ...current };
+              delete next[targetId];
+              return next;
+            }
+            return {
+              ...current,
+              [targetId]: {
+                authorName:
+                  typeof data.authorName === "string" ? data.authorName : "",
+                createdAt: timestampMillis(
+                  data.createdAt as { toDate: () => Date } | undefined,
+                ),
+                text: typeof data.text === "string" ? data.text : "",
+              },
+            };
+          });
         },
       );
     });
@@ -84,8 +104,9 @@ export function useMessageUnread(
   }, [scope, stableTargetIds]);
 
   useEffect(() => {
-    if (!db || !activeId || !latestTimes[activeId]) return;
-    if ((readTimes[activeId] || 0) >= latestTimes[activeId]) return;
+    const latestTime = latestActivity[activeId]?.createdAt || 0;
+    if (!db || !activeId || !latestTime) return;
+    if ((readTimes[activeId] || 0) >= latestTime) return;
     const id = `${userId}_${scope}_${activeId}`;
     void setDoc(doc(db, "messageReadStates", id), {
       userId,
@@ -93,7 +114,7 @@ export function useMessageUnread(
       targetId: activeId,
       readAt: serverTimestamp(),
     });
-  }, [activeId, latestTimes, readTimes, scope, userId]);
+  }, [activeId, latestActivity, readTimes, scope, userId]);
 
   const unreadIds = useMemo(
     () =>
@@ -101,11 +122,12 @@ export function useMessageUnread(
         stableTargetIds.filter(
           (targetId) =>
             targetId !== activeId &&
-            (latestTimes[targetId] || 0) > (readTimes[targetId] || 0),
+            (latestActivity[targetId]?.createdAt || 0) >
+              (readTimes[targetId] || 0),
         ),
       ),
-    [activeId, latestTimes, readTimes, stableTargetIds],
+    [activeId, latestActivity, readTimes, stableTargetIds],
   );
 
-  return unreadIds;
+  return { latestActivity, unreadIds };
 }
