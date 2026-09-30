@@ -146,6 +146,18 @@ const applicationStatusLabels: Record<Application["status"], string> = {
   declined: "미선정",
   cancelled: "신청 취소",
 };
+const auditActionLabels: Record<string, string> = {
+  "overview.save": "사이트 소개 수정",
+  "privacy.save": "개인정보 안내 수정",
+  "content.create": "콘텐츠 등록",
+  "content.update": "콘텐츠 수정",
+  "content.delete": "콘텐츠 삭제",
+  "application.status": "신청 상태 변경",
+  "application.delete": "신청 내역 삭제",
+  "role.save": "계정 역할 저장",
+  "role.toggle": "계정 역할 변경",
+  "role.delete": "계정 역할 삭제",
+};
 
 function setMetaTag(selector: string, attribute: string, value: string) {
   const element = document.head.querySelector<HTMLMetaElement>(selector);
@@ -2320,6 +2332,8 @@ function AdminPanel(props: AdminProps) {
   const [applicationStatus, setApplicationStatus] = useState<
     "all" | Application["status"]
   >("all");
+  const [auditQuery, setAuditQuery] = useState("");
+  const [auditAction, setAuditAction] = useState("all");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberName, setMemberName] = useState("");
   const [newAdminAccess, setNewAdminAccess] = useState(false);
@@ -2353,18 +2367,6 @@ function AdminPanel(props: AdminProps) {
     members: "구성원 권한",
     auditLogs: "활동 기록",
   };
-  const auditActionLabels: Record<string, string> = {
-    "overview.save": "사이트 소개 수정",
-    "privacy.save": "개인정보 안내 수정",
-    "content.create": "콘텐츠 등록",
-    "content.update": "콘텐츠 수정",
-    "content.delete": "콘텐츠 삭제",
-    "application.status": "신청 상태 변경",
-    "application.delete": "신청 내역 삭제",
-    "role.save": "계정 역할 저장",
-    "role.toggle": "계정 역할 변경",
-    "role.delete": "계정 역할 삭제",
-  };
   const filteredApplications = useMemo(() => {
     const term = applicationQuery.trim().toLocaleLowerCase("ko-KR");
     return [...applications]
@@ -2387,6 +2389,23 @@ function AdminPanel(props: AdminProps) {
           (a.createdAt?.toDate()?.getTime() || 0),
       );
   }, [applicationQuery, applicationStatus, applications, events]);
+  const auditActions = useMemo(
+    () => [...new Set(auditLogs.map((log) => log.action))].sort(),
+    [auditLogs],
+  );
+  const filteredAuditLogs = useMemo(() => {
+    const term = auditQuery.trim().toLocaleLowerCase("ko-KR");
+    return auditLogs.filter((log) => {
+      if (auditAction !== "all" && log.action !== auditAction) return false;
+      if (!term) return true;
+      return [
+        auditActionLabels[log.action] || log.action,
+        log.actor,
+        log.target,
+        log.details,
+      ].some((value) => value.toLocaleLowerCase("ko-KR").includes(term));
+    });
+  }, [auditAction, auditLogs, auditQuery]);
   const pendingApplications = applications.filter(
     (item) => item.status === "new" || item.status === "reviewing",
   ).length;
@@ -2644,6 +2663,27 @@ function AdminPanel(props: AdminProps) {
     const link = document.createElement("a");
     link.href = url;
     link.download = `geek-byte-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+  function exportAuditLogs() {
+    const headings = ["작업", "담당자", "대상", "세부 내용", "일시"];
+    const rows = filteredAuditLogs.map((log) => [
+      auditActionLabels[log.action] || log.action,
+      log.actor,
+      log.target,
+      log.details,
+      log.createdAt?.toDate()?.toLocaleString("ko-KR") || "",
+    ]);
+    const csv = [headings, ...rows]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\r\n");
+    const url = URL.createObjectURL(
+      new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `geek-byte-admin-audit-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -3135,21 +3175,62 @@ function AdminPanel(props: AdminProps) {
               최근 관리자 작업 100건입니다. 기록은 관리자도 수정하거나 삭제할 수
               없습니다.
             </p>
+            <div className="application-toolbar audit-toolbar">
+              <label>
+                <span>기록 검색</span>
+                <input
+                  type="search"
+                  value={auditQuery}
+                  onChange={(event) => setAuditQuery(event.target.value)}
+                  placeholder="담당자, 대상, 세부 내용"
+                />
+              </label>
+              <label>
+                <span>작업 유형</span>
+                <select
+                  value={auditAction}
+                  onChange={(event) => setAuditAction(event.target.value)}
+                >
+                  <option value="all">전체 작업</option>
+                  {auditActions.map((action) => (
+                    <option value={action} key={action}>
+                      {auditActionLabels[action] || action}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                className="button button-ghost"
+                disabled={!filteredAuditLogs.length}
+                onClick={exportAuditLogs}
+              >
+                <Download size={16} /> CSV 내보내기
+              </button>
+            </div>
+            <p className="application-count" role="status">
+              전체 {auditLogs.length}건 중 {filteredAuditLogs.length}건 표시
+            </p>
             {auditLogs.length ? (
-              auditLogs.map((log) => (
-                <article className="audit-log-record" key={log.id}>
-                  <div className="audit-log-meta">
-                    <span>{auditActionLabels[log.action] || log.action}</span>
-                    <time>
-                      {log.createdAt?.toDate().toLocaleString("ko-KR") ||
-                        "시간 확인 중"}
-                    </time>
-                  </div>
-                  <h3>{log.details}</h3>
-                  <p>{log.target}</p>
-                  <small>{log.actor}</small>
-                </article>
-              ))
+              filteredAuditLogs.length ? (
+                filteredAuditLogs.map((log) => (
+                  <article className="audit-log-record" key={log.id}>
+                    <div className="audit-log-meta">
+                      <span>{auditActionLabels[log.action] || log.action}</span>
+                      <time>
+                        {log.createdAt?.toDate().toLocaleString("ko-KR") ||
+                          "시간 확인 중"}
+                      </time>
+                    </div>
+                    <h3>{log.details}</h3>
+                    <p>{log.target}</p>
+                    <small>{log.actor}</small>
+                  </article>
+                ))
+              ) : (
+                <p className="admin-empty">
+                  검색 조건에 맞는 활동 기록이 없습니다.
+                </p>
+              )
             ) : (
               <p className="admin-empty">아직 기록된 관리자 작업이 없습니다.</p>
             )}
