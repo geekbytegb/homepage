@@ -39,6 +39,24 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/site/privacy).data.body is string
         && get(/databases/$(database)/documents/site/privacy).data.body.size() > 0;
     }
+    function validMemberDocument(memberEmail) {
+      return request.resource.data.keys().hasOnly([
+          'email', 'displayName', 'active', 'adminAccess', 'memberAccess', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'email', 'displayName', 'active', 'adminAccess', 'memberAccess', 'updatedAt'
+        ])
+        && request.resource.data.email == memberEmail
+        && request.resource.data.email is string
+        && request.resource.data.email.size() >= 3
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.active is bool
+        && request.resource.data.adminAccess is bool
+        && request.resource.data.memberAccess is bool
+        && request.resource.data.updatedAt == request.time;
+    }
 
     match /site/{documentId} {
       allow read: if documentId == 'overview' || (documentId == 'privacy' && resource.data.published == true) || admin();
@@ -83,8 +101,9 @@ service cloud.firestore {
     match /members/{memberEmail} {
       allow read: if admin()
         || (signedIn() && request.auth.token.get('email', '') == memberEmail);
-      allow create: if admin();
+      allow create: if admin() && validMemberDocument(memberEmail);
       allow update: if admin()
+        && validMemberDocument(memberEmail)
         && (request.auth.token.get('admin', false) == true
           || request.auth.token.get('email', '') != memberEmail
           || (request.resource.data.active == true

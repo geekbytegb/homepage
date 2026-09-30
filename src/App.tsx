@@ -156,6 +156,7 @@ const auditActionLabels: Record<string, string> = {
   "application.delete": "신청 내역 삭제",
   "role.save": "계정 역할 저장",
   "role.toggle": "계정 역할 변경",
+  "role.active": "계정 상태 변경",
   "role.delete": "계정 역할 삭제",
 };
 function registrationAvailable(event: Event) {
@@ -1049,6 +1050,25 @@ function App() {
     await batch.commit();
     setAdminMessage(
       `${role === "adminAccess" ? "관리자" : "내부자"} 역할을 ${enabled ? "부여했습니다." : "해제했습니다."}`,
+    );
+  }
+
+  async function setMemberActive(member: Member, active: boolean) {
+    if (!db) return;
+    const batch = writeBatch(db);
+    batch.update(doc(db, "members", member.id), {
+      active,
+      updatedAt: serverTimestamp(),
+    });
+    appendAudit(
+      batch,
+      "role.active",
+      `members/${member.id}`,
+      `계정 ${active ? "활성화" : "비활성화"}`,
+    );
+    await batch.commit();
+    setAdminMessage(
+      `구성원 계정을 ${active ? "활성화했습니다." : "비활성화했습니다."}`,
     );
   }
 
@@ -2368,6 +2388,7 @@ function App() {
           onDeleteApplication={deleteApplication}
           onSaveMember={saveMember}
           onSetMemberRole={setMemberRole}
+          onSetMemberActive={setMemberActive}
           onDeleteMember={deleteMember}
           onDeleteEntry={deleteEntry}
           message={adminMessage}
@@ -2417,6 +2438,7 @@ type AdminProps = {
     role: "adminAccess" | "memberAccess",
     enabled: boolean,
   ) => Promise<void>;
+  onSetMemberActive: (member: Member, active: boolean) => Promise<void>;
   onDeleteMember: (id: string) => Promise<void>;
   onDeleteEntry: (
     name: Exclude<CollectionName, "applications">,
@@ -2454,6 +2476,7 @@ function AdminPanel(props: AdminProps) {
     onDeleteApplication,
     onSaveMember,
     onSetMemberRole,
+    onSetMemberActive,
     onDeleteMember,
     onDeleteEntry,
     message,
@@ -2794,6 +2817,17 @@ function AdminPanel(props: AdminProps) {
       setRoleConfirmKey(null);
     } catch {
       setMessage("구성원 권한 변경에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function toggleMemberActive(member: Member) {
+    setSaving(true);
+    try {
+      await onSetMemberActive(member, !member.active);
+      setRoleConfirmKey(null);
+    } catch {
+      setMessage("구성원 계정 상태 변경에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -3208,7 +3242,8 @@ function AdminPanel(props: AdminProps) {
               <p className="admin-help">
                 관리자와 내부자 역할을 독립적으로 설정합니다. 관리자는 사이트
                 운영 도구를, 내부자는 인트라넷을 이용합니다. 이메일은 Firebase
-                Authentication 계정과 정확히 같아야 합니다.
+                Authentication 계정과 정확히 같아야 합니다. 비활성화하면 기록은
+                유지하면서 두 역할의 접근을 즉시 차단합니다.
               </p>
               <div className="form-grid">
                 <label>
@@ -3271,6 +3306,11 @@ function AdminPanel(props: AdminProps) {
                       <article className="admin-row" key={member.id}>
                         <div>
                           <div className="member-role-badges">
+                            <span
+                              className={`member-role-badge member-account-state ${member.active ? "status-active" : "status-inactive"}`}
+                            >
+                              {member.active ? "활성" : "비활성"}
+                            </span>
                             <span
                               className={`member-role-badge ${member.adminAccess ? "active" : ""}`}
                             >
@@ -3357,6 +3397,40 @@ function AdminPanel(props: AdminProps) {
                                 <Eye size={17} />
                               )}
                               내부자 {member.memberAccess ? "해제" : "부여"}
+                            </button>
+                          )}
+                          {roleConfirmKey === `active:${member.id}` ? (
+                            <span className="admin-delete-confirm">
+                              <button
+                                className={member.active ? "danger" : ""}
+                                disabled={saving}
+                                onClick={() => toggleMemberActive(member)}
+                              >
+                                계정 {member.active ? "비활성화" : "활성화"}{" "}
+                                확인
+                              </button>
+                              <button onClick={() => setRoleConfirmKey(null)}>
+                                취소
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              disabled={saving || protectsCurrentAdmin}
+                              title={
+                                protectsCurrentAdmin
+                                  ? "현재 관리자 계정은 다른 관리자 또는 루트 관리자가 비활성화해야 합니다."
+                                  : undefined
+                              }
+                              onClick={() =>
+                                setRoleConfirmKey(`active:${member.id}`)
+                              }
+                            >
+                              {member.active ? (
+                                <EyeOff size={17} />
+                              ) : (
+                                <Check size={17} />
+                              )}
+                              {member.active ? "비활성화" : "활성화"}
                             </button>
                           )}
                           {deletingId === `member:${member.id}` ? (

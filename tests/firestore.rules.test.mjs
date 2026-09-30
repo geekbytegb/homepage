@@ -99,6 +99,14 @@ before(async () => {
       adminAccess: true,
       memberAccess: false,
     });
+    await setDoc(doc(store, "members", "managed@example.com"), {
+      email: "managed@example.com",
+      displayName: "Managed Member",
+      active: true,
+      adminAccess: false,
+      memberAccess: true,
+      updatedAt: Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")),
+    });
   });
 });
 after(async () => {
@@ -220,19 +228,63 @@ test("directory administrator and intranet member roles stay independent", async
       published: true,
     }),
   );
+  await assertFails(
+    setDoc(doc(directoryAdmin, "members", "mismatch@example.com"), {
+      email: "other@example.com",
+      displayName: "Mismatch",
+      active: true,
+      adminAccess: false,
+      memberAccess: true,
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    setDoc(doc(directoryAdmin, "members", "injected@example.com"), {
+      email: "injected@example.com",
+      displayName: "Injected",
+      active: true,
+      adminAccess: false,
+      memberAccess: true,
+      unexpected: "field",
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertSucceeds(
+    setDoc(doc(directoryAdmin, "members", "newmember@example.com"), {
+      email: "newmember@example.com",
+      displayName: "New Member",
+      active: true,
+      adminAccess: false,
+      memberAccess: true,
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(directoryAdmin, "members", "managed@example.com"), {
+      active: false,
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  const managedMember = environment
+    .authenticatedContext("managed", { email: "managed@example.com" })
+    .firestore();
+  await assertFails(getDoc(doc(managedMember, "intranetNotices", "internal")));
   await assertSucceeds(
     updateDoc(doc(directoryAdmin, "members", "siteadmin@example.com"), {
       memberAccess: true,
+      updatedAt: serverTimestamp(),
     }),
   );
   await assertFails(
     updateDoc(doc(directoryAdmin, "members", "siteadmin@example.com"), {
       adminAccess: false,
+      updatedAt: serverTimestamp(),
     }),
   );
   await assertFails(
     updateDoc(doc(directoryAdmin, "members", "siteadmin@example.com"), {
       active: false,
+      updatedAt: serverTimestamp(),
     }),
   );
   await assertFails(
@@ -247,6 +299,7 @@ test("directory administrator and intranet member roles stay independent", async
   await assertSucceeds(
     updateDoc(doc(rootAdmin, "members", "siteadmin@example.com"), {
       adminAccess: false,
+      updatedAt: serverTimestamp(),
     }),
   );
   await assertSucceeds(

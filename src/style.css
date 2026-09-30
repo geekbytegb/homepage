@@ -2034,6 +2034,16 @@ button.admin-dashboard-row:hover {
   background: rgba(91, 113, 224, 0.18);
   color: #c9d2ff;
 }
+.member-role-badge.member-account-state.status-active {
+  border-color: rgba(82, 181, 119, 0.35);
+  background: rgba(58, 132, 88, 0.2);
+  color: #9be0b6;
+}
+.member-role-badge.member-account-state.status-inactive {
+  border-color: rgba(185, 93, 74, 0.35);
+  background: rgba(170, 81, 59, 0.18);
+  color: #ffc0ae;
+}
 .member-self-protection {
   display: block;
   max-width: 500px;
