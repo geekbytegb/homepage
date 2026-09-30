@@ -274,6 +274,58 @@ test("an admin claim grants content write and application read access", async ()
   await assertSucceeds(deleteDoc(doc(store, "notices", "draft")));
 });
 
+test("site settings accept only bounded overview and complete published privacy data", async () => {
+  const store = environment
+    .authenticatedContext("site-settings-admin", { admin: true })
+    .firestore();
+  await assertSucceeds(
+    setDoc(doc(store, "site", "overview"), {
+      eyebrow: "IDEAS INTO IMPACT",
+      headline: "Technology that works",
+      description: "Geek Byte introduction",
+      mission: "Build and share",
+      email: "contact@example.com",
+    }),
+  );
+  await assertFails(
+    setDoc(doc(store, "site", "overview"), {
+      eyebrow: "IDEAS INTO IMPACT",
+      headline: "Technology that works",
+      description: "Geek Byte introduction",
+      mission: "Build and share",
+      email: "contact@example.com",
+      injected: true,
+    }),
+  );
+  await assertFails(
+    setDoc(doc(store, "site", "privacy"), {
+      published: true,
+      operator: "Geek Byte",
+      contact: "contact@example.com",
+      retention: "1 year",
+      body: "임시",
+    }),
+  );
+  await assertSucceeds(
+    setDoc(doc(store, "site", "privacy"), {
+      published: false,
+      operator: "Geek Byte",
+      contact: "contact@example.com",
+      retention: "1 year",
+      body: "임시",
+    }),
+  );
+  await assertSucceeds(
+    setDoc(doc(store, "site", "privacy"), {
+      published: true,
+      operator: "Geek Byte",
+      contact: "contact@example.com",
+      retention: "1 year",
+      body: "Geek Byte 개인정보 처리방침은 수집 항목, 이용 목적, 보유 기간, 파기 절차, 정보주체의 권리와 문의 방법을 구체적으로 안내합니다. 자세한 내용입니다.",
+    }),
+  );
+});
+
 test("members can manage only their own RSVP for published internal events", async () => {
   const member = environment
     .authenticatedContext("rsvp-member", {

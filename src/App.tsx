@@ -3562,6 +3562,7 @@ function AdminPanel(props: AdminProps) {
                 key === "mission" ? (
                   <textarea
                     rows={key === "headline" ? 3 : 4}
+                    maxLength={key === "headline" ? 300 : 1000}
                     value={draftOverview[key]}
                     onChange={(e) =>
                       setDraftOverview({
@@ -3573,6 +3574,7 @@ function AdminPanel(props: AdminProps) {
                 ) : (
                   <input
                     type={key === "email" ? "email" : "text"}
+                    maxLength={key === "email" ? 254 : 100}
                     value={draftOverview[key]}
                     onChange={(e) =>
                       setDraftOverview({
@@ -3599,6 +3601,7 @@ function AdminPanel(props: AdminProps) {
               운영 주체
               <input
                 required={draftPrivacy.published}
+                maxLength={100}
                 value={draftPrivacy.operator}
                 onChange={(e) =>
                   setDraftPrivacy({ ...draftPrivacy, operator: e.target.value })
@@ -3609,6 +3612,7 @@ function AdminPanel(props: AdminProps) {
               개인정보 문의처
               <input
                 required={draftPrivacy.published}
+                maxLength={254}
                 value={draftPrivacy.contact}
                 onChange={(e) =>
                   setDraftPrivacy({ ...draftPrivacy, contact: e.target.value })
@@ -3619,6 +3623,7 @@ function AdminPanel(props: AdminProps) {
               보유 기간
               <input
                 required={draftPrivacy.published}
+                maxLength={200}
                 value={draftPrivacy.retention}
                 onChange={(e) =>
                   setDraftPrivacy({
@@ -3635,6 +3640,7 @@ function AdminPanel(props: AdminProps) {
                 minLength={
                   draftPrivacy.published ? MIN_PRIVACY_BODY_LENGTH : undefined
                 }
+                maxLength={20000}
                 rows={12}
                 value={draftPrivacy.body}
                 onChange={(e) =>

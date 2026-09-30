@@ -74,6 +74,38 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/site/privacy).data.body is string
         && get(/databases/$(database)/documents/site/privacy).data.body.size() >= 80;
     }
+    function validOverviewDocument() {
+      return request.resource.data.keys().hasOnly(['eyebrow', 'headline', 'description', 'mission', 'email'])
+        && request.resource.data.keys().hasAll(['eyebrow', 'headline', 'description', 'mission', 'email'])
+        && request.resource.data.eyebrow is string
+        && request.resource.data.eyebrow.size() <= 100
+        && request.resource.data.headline is string
+        && request.resource.data.headline.size() <= 300
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 1000
+        && request.resource.data.mission is string
+        && request.resource.data.mission.size() <= 1000
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254;
+    }
+    function validPrivacyDocument() {
+      return request.resource.data.keys().hasOnly(['published', 'operator', 'contact', 'retention', 'body'])
+        && request.resource.data.keys().hasAll(['published', 'operator', 'contact', 'retention', 'body'])
+        && request.resource.data.published is bool
+        && request.resource.data.operator is string
+        && request.resource.data.operator.size() <= 100
+        && request.resource.data.contact is string
+        && request.resource.data.contact.size() <= 254
+        && request.resource.data.retention is string
+        && request.resource.data.retention.size() <= 200
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 20000
+        && (request.resource.data.published == false
+          || (request.resource.data.operator.size() > 0
+            && request.resource.data.contact.size() > 0
+            && request.resource.data.retention.size() > 0
+            && request.resource.data.body.size() >= 80));
+    }
     function validMemberDocument(memberEmail) {
       return request.resource.data.keys().hasOnly([
           'email', 'displayName', 'active', 'adminAccess', 'memberAccess', 'updatedAt'
@@ -95,7 +127,10 @@ service cloud.firestore {
 
     match /site/{documentId} {
       allow read: if documentId == 'overview' || (documentId == 'privacy' && resource.data.published == true) || admin();
-      allow write: if admin();
+      allow create, update: if admin()
+        && ((documentId == 'overview' && validOverviewDocument())
+          || (documentId == 'privacy' && validPrivacyDocument()));
+      allow delete: if admin() && documentId in ['overview', 'privacy'];
     }
     match /history/{itemId} {
       allow read: if publicOrAdmin();
