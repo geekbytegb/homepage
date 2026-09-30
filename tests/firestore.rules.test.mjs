@@ -78,6 +78,29 @@ before(async () => {
       role: "Developer",
       published: false,
     });
+    await setDoc(doc(store, "intranetEvents", "internal-event"), {
+      title: "Team Day",
+      published: true,
+    });
+    await setDoc(doc(store, "intranetEvents", "internal-event-draft"), {
+      title: "Secret Team Day",
+      published: false,
+    });
+    await setDoc(doc(store, "chatChannels", "general"), {
+      name: "general",
+      kind: "chat",
+      published: true,
+    });
+    await setDoc(doc(store, "chatChannels", "announcements"), {
+      name: "announcements",
+      kind: "announcement",
+      published: true,
+    });
+    await setDoc(doc(store, "chatChannels", "draft-channel"), {
+      name: "draft",
+      kind: "chat",
+      published: false,
+    });
     await setDoc(doc(store, "members", "listed@example.com"), {
       email: "listed@example.com",
       displayName: "Listed Member",
@@ -214,6 +237,141 @@ test("an admin claim grants content write and application read access", async ()
   );
   await assertSucceeds(getDocs(collection(store, "applications")));
   await assertSucceeds(deleteDoc(doc(store, "notices", "draft")));
+});
+
+test("members can manage only their own RSVP for published internal events", async () => {
+  const member = environment
+    .authenticatedContext("rsvp-member", {
+      member: true,
+      name: "RSVP Member",
+      email: "rsvp@example.com",
+    })
+    .firestore();
+  const response = doc(
+    member,
+    "intranetEventRsvps",
+    "internal-event_rsvp-member",
+  );
+  await assertSucceeds(
+    setDoc(response, {
+      eventId: "internal-event",
+      userId: "rsvp-member",
+      displayName: "RSVP Member",
+      response: "going",
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    setDoc(response, {
+      eventId: "internal-event",
+      userId: "rsvp-member",
+      displayName: "Spoofed Member",
+      response: "maybe",
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    setDoc(
+      doc(member, "intranetEventRsvps", "internal-event-draft_rsvp-member"),
+      {
+        eventId: "internal-event-draft",
+        userId: "rsvp-member",
+        displayName: "RSVP Member",
+        response: "going",
+        updatedAt: serverTimestamp(),
+      },
+    ),
+  );
+  const other = environment
+    .authenticatedContext("other-rsvp", {
+      member: true,
+      name: "Other Member",
+    })
+    .firestore();
+  await assertFails(
+    deleteDoc(doc(other, "intranetEventRsvps", "internal-event_rsvp-member")),
+  );
+  await assertSucceeds(deleteDoc(response));
+  const visitor = environment.authenticatedContext("rsvp-visitor").firestore();
+  await assertFails(getDoc(doc(visitor, "intranetEvents", "internal-event")));
+});
+
+test("published chat channels support secure member group messaging", async () => {
+  const member = environment
+    .authenticatedContext("chat-member", {
+      member: true,
+      name: "Chat Member",
+      email: "chat@example.com",
+    })
+    .firestore();
+  await assertSucceeds(getDoc(doc(member, "chatChannels", "general")));
+  await assertFails(getDoc(doc(member, "chatChannels", "draft-channel")));
+  const message = doc(member, "chatChannels", "general", "messages", "one");
+  await assertSucceeds(
+    setDoc(message, {
+      authorUid: "chat-member",
+      authorName: "Chat Member",
+      text: "안녕하세요.",
+      createdAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    setDoc(doc(member, "chatChannels", "general", "messages", "spoof"), {
+      authorUid: "chat-member",
+      authorName: "Someone Else",
+      text: "위조된 이름",
+      createdAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    setDoc(
+      doc(member, "chatChannels", "announcements", "messages", "member-post"),
+      {
+        authorUid: "chat-member",
+        authorName: "Chat Member",
+        text: "공지 채널 쓰기 시도",
+        createdAt: serverTimestamp(),
+      },
+    ),
+  );
+  await assertFails(
+    setDoc(
+      doc(member, "chatChannels", "draft-channel", "messages", "draft-post"),
+      {
+        authorUid: "chat-member",
+        authorName: "Chat Member",
+        text: "비공개 채널 쓰기 시도",
+        createdAt: serverTimestamp(),
+      },
+    ),
+  );
+  const other = environment
+    .authenticatedContext("other-chat", {
+      member: true,
+      name: "Other Chat",
+    })
+    .firestore();
+  await assertFails(
+    deleteDoc(doc(other, "chatChannels", "general", "messages", "one")),
+  );
+  await assertSucceeds(deleteDoc(message));
+  const admin = environment
+    .authenticatedContext("chat-admin", {
+      admin: true,
+      name: "Chat Admin",
+    })
+    .firestore();
+  await assertSucceeds(
+    setDoc(
+      doc(admin, "chatChannels", "announcements", "messages", "admin-post"),
+      {
+        authorUid: "chat-admin",
+        authorName: "Chat Admin",
+        text: "관리자 공지",
+        createdAt: serverTimestamp(),
+      },
+    ),
+  );
 });
 
 test("directory administrator and intranet member roles stay independent", async () => {

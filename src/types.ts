@@ -65,6 +65,32 @@ export type IntranetProfile = Entry & {
   skills: string;
   order?: number;
 };
+export type IntranetEvent = Entry & {
+  title: string;
+  category: string;
+  description: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  organizer: string;
+  url: string;
+  order?: number;
+};
+export type IntranetEventRsvp = {
+  id: string;
+  eventId: string;
+  userId: string;
+  displayName: string;
+  response: "going" | "maybe" | "not-going";
+  updatedAt?: { toDate: () => Date };
+};
+export type ChatChannel = Entry & {
+  name: string;
+  description: string;
+  kind: "chat" | "announcement";
+  order?: number;
+};
 export type Product = Entry & {
   name: string;
   category: string;

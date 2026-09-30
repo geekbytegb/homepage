@@ -9,7 +9,7 @@ import {
 
 function validBackup() {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: "2026-09-30T00:00:00.000Z",
     site: {
       overview: {
@@ -39,6 +39,8 @@ function validBackup() {
       projects: [],
       meetings: [],
       profiles: [],
+      events: [],
+      channels: [],
     },
   };
 }
@@ -60,6 +62,17 @@ test("valid content backup parses and counts only content documents", () => {
   const parsed = parseContentBackup(JSON.stringify(backup));
   assert.equal(contentBackupCount(parsed), 1);
   assert.equal(parsed.intranetContent.profiles[0].id, "member-1");
+});
+
+test("schema version 2 backups migrate with empty event and channel lists", () => {
+  const backup = validBackup();
+  backup.schemaVersion = 2;
+  delete backup.intranetContent.events;
+  delete backup.intranetContent.channels;
+  const parsed = parseContentBackup(JSON.stringify(backup));
+  assert.equal(parsed.schemaVersion, 3);
+  assert.deepEqual(parsed.intranetContent.events, []);
+  assert.deepEqual(parsed.intranetContent.channels, []);
 });
 
 test("backup parser rejects duplicate and unsafe document ids", () => {

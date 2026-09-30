@@ -2,7 +2,7 @@ import { Timestamp } from "firebase/firestore";
 
 export type BackupEntry = Record<string, unknown> & { id: string };
 export type ContentBackupPayload = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   exportedAt: string;
   site: {
     overview: Record<string, unknown>;
@@ -20,6 +20,8 @@ export type ContentBackupPayload = {
     projects: BackupEntry[];
     meetings: BackupEntry[];
     profiles: BackupEntry[];
+    events: BackupEntry[];
+    channels: BackupEntry[];
   };
 };
 
@@ -152,6 +154,24 @@ function validateBackupPayload(payload: ContentBackupPayload) {
     ["bio", "string"],
     ["skills", "string"],
   ]);
+  validateEntries(payload.intranetContent.events, "내부 행사", [
+    ["published", "boolean"],
+    ["title", "string"],
+    ["category", "string"],
+    ["description", "string"],
+    ["date", "string"],
+    ["startTime", "string"],
+    ["endTime", "string"],
+    ["location", "string"],
+    ["organizer", "string"],
+    ["url", "string"],
+  ]);
+  validateEntries(payload.intranetContent.channels, "메신저 채널", [
+    ["published", "boolean"],
+    ["name", "string"],
+    ["description", "string"],
+    ["kind", "string"],
+  ]);
 }
 
 export function contentBackupCount(payload: ContentBackupPayload) {
@@ -168,7 +188,10 @@ export function parseContentBackup(text: string): ContentBackupPayload {
   } catch {
     throw new Error("JSON 파일을 읽을 수 없습니다.");
   }
-  if (!isRecord(value) || value.schemaVersion !== 2)
+  if (
+    !isRecord(value) ||
+    (value.schemaVersion !== 2 && value.schemaVersion !== 3)
+  )
     throw new Error("지원하는 Geek Byte 백업 형식이 아닙니다.");
   if (
     typeof value.exportedAt !== "string" ||
@@ -187,7 +210,7 @@ export function parseContentBackup(text: string): ContentBackupPayload {
     throw new Error("백업의 필수 영역이 누락되었습니다.");
   }
   const payload: ContentBackupPayload = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: value.exportedAt,
     site: {
       overview: value.site.overview,
@@ -205,6 +228,14 @@ export function parseContentBackup(text: string): ContentBackupPayload {
       projects: backupEntries(value.intranetContent.projects, "프로젝트"),
       meetings: backupEntries(value.intranetContent.meetings, "회의 기록"),
       profiles: backupEntries(value.intranetContent.profiles, "구성원 프로필"),
+      events:
+        value.schemaVersion === 3
+          ? backupEntries(value.intranetContent.events, "내부 행사")
+          : [],
+      channels:
+        value.schemaVersion === 3
+          ? backupEntries(value.intranetContent.channels, "메신저 채널")
+          : [],
     },
   };
   if (contentBackupCount(payload) > 400)

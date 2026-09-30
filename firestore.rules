@@ -26,6 +26,25 @@ service cloud.firestore {
       return signedIn()
         && (request.auth.token.get('member', false) == true || directoryMember());
     }
+    function authDisplayName() {
+      return request.auth.token.get(
+        'name',
+        request.auth.token.get('email', '구성원')
+      );
+    }
+    function publishedChatChannel(channelId) {
+      return exists(/databases/$(database)/documents/chatChannels/$(channelId))
+        && get(/databases/$(database)/documents/chatChannels/$(channelId)).data.published == true;
+    }
+    function canReadChat(channelId) {
+      return admin() || (member() && publishedChatChannel(channelId));
+    }
+    function canPostChat(channelId) {
+      return admin()
+        || (member()
+          && publishedChatChannel(channelId)
+          && get(/databases/$(database)/documents/chatChannels/$(channelId)).data.kind == 'chat');
+    }
     function publicOrAdmin() { return admin() || resource.data.published == true; }
     function privacyReady() {
       return exists(/databases/$(database)/documents/site/privacy)
@@ -97,6 +116,56 @@ service cloud.firestore {
     match /intranetProfiles/{itemId} {
       allow read: if admin() || (member() && resource.data.published == true);
       allow write: if admin();
+    }
+    match /intranetEvents/{eventId} {
+      allow read: if admin() || (member() && resource.data.published == true);
+      allow write: if admin();
+    }
+    match /intranetEventRsvps/{rsvpId} {
+      allow read: if admin() || member();
+      allow create, update: if (admin() || member())
+        && request.resource.data.keys().hasOnly([
+          'eventId', 'userId', 'displayName', 'response', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'eventId', 'userId', 'displayName', 'response', 'updatedAt'
+        ])
+        && request.resource.data.eventId is string
+        && request.resource.data.eventId.size() > 0
+        && request.resource.data.eventId.size() <= 1500
+        && rsvpId == request.resource.data.eventId + '_' + request.auth.uid
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.displayName == authDisplayName()
+        && request.resource.data.response in ['going', 'maybe', 'not-going']
+        && request.resource.data.updatedAt == request.time
+        && exists(/databases/$(database)/documents/intranetEvents/$(request.resource.data.eventId))
+        && get(/databases/$(database)/documents/intranetEvents/$(request.resource.data.eventId)).data.published == true;
+      allow delete: if admin()
+        || ((member() || admin()) && resource.data.userId == request.auth.uid);
+    }
+    match /chatChannels/{channelId} {
+      allow read: if admin() || (member() && resource.data.published == true);
+      allow write: if admin();
+
+      match /messages/{messageId} {
+        allow read: if canReadChat(channelId);
+        allow create: if canPostChat(channelId)
+          && request.resource.data.keys().hasOnly([
+            'authorUid', 'authorName', 'text', 'createdAt'
+          ])
+          && request.resource.data.keys().hasAll([
+            'authorUid', 'authorName', 'text', 'createdAt'
+          ])
+          && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.authorName == authDisplayName()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.createdAt == request.time;
+        allow update: if false;
+        allow delete: if admin()
+          || (canReadChat(channelId) && resource.data.authorUid == request.auth.uid);
+      }
     }
     match /members/{memberEmail} {
       allow read: if admin()

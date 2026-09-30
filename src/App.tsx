@@ -50,6 +50,8 @@ import {
   X,
 } from "lucide-react";
 import { appCheckConfigured, auth, configured, db } from "./firebase";
+import { IntranetChat } from "./IntranetChat";
+import { IntranetEvents } from "./IntranetEvents";
 import { buildLaunchReadiness } from "./readiness";
 import {
   contentBackupCount,
@@ -67,6 +69,8 @@ import {
   type Event,
   type Entry,
   type HistoryItem,
+  type ChatChannel,
+  type IntranetEvent,
   type IntranetResource,
   type IntranetProject,
   type IntranetMeeting,
@@ -89,6 +93,8 @@ type CollectionName =
   | "intranetProjects"
   | "intranetMeetings"
   | "intranetProfiles"
+  | "intranetEvents"
+  | "chatChannels"
   | "applications";
 type AdminTab =
   | "dashboard"
@@ -289,6 +295,26 @@ const emptyEditors: Record<
     order: 1,
     published: false,
   },
+  intranetEvents: {
+    title: "",
+    category: "팀 일정",
+    description: "",
+    date: new Date().toISOString().slice(0, 10),
+    startTime: "",
+    endTime: "",
+    location: "",
+    organizer: "",
+    url: "",
+    order: 1,
+    published: false,
+  },
+  chatChannels: {
+    name: "",
+    description: "",
+    kind: "chat",
+    order: 1,
+    published: false,
+  },
 };
 
 function useEntries<T extends Entry>(
@@ -413,6 +439,20 @@ function App() {
   );
   const intranetProfiles = useEntries<IntranetProfile>(
     "intranetProfiles",
+    isAdmin,
+    [],
+    true,
+    isMember,
+  );
+  const intranetEvents = useEntries<IntranetEvent>(
+    "intranetEvents",
+    isAdmin,
+    [],
+    true,
+    isMember,
+  );
+  const chatChannels = useEntries<ChatChannel>(
+    "chatChannels",
     isAdmin,
     [],
     true,
@@ -669,6 +709,29 @@ function App() {
         ),
     [intranetProfiles.items],
   );
+  const visibleIntranetEvents = useMemo(
+    () =>
+      intranetEvents.items
+        .filter((item) => item.published)
+        .sort(
+          (a, b) =>
+            a.date.localeCompare(b.date) ||
+            a.startTime.localeCompare(b.startTime) ||
+            displayOrder(a) - displayOrder(b),
+        ),
+    [intranetEvents.items],
+  );
+  const visibleChatChannels = useMemo(
+    () =>
+      chatChannels.items
+        .filter((item) => item.published)
+        .sort(
+          (a, b) =>
+            displayOrder(a) - displayOrder(b) ||
+            a.name.localeCompare(b.name, "ko-KR"),
+        ),
+    [chatChannels.items],
+  );
   const contentError =
     page === "/about"
       ? history.error
@@ -683,7 +746,9 @@ function App() {
                 intranetResources.error ||
                 intranetProjects.error ||
                 intranetMeetings.error ||
-                intranetProfiles.error
+                intranetProfiles.error ||
+                intranetEvents.error ||
+                chatChannels.error
               : "";
   const privacyReady = Boolean(
     privacy.published &&
@@ -960,6 +1025,13 @@ function App() {
     ) {
       throw new Error("INVALID_PROJECT_URL");
     }
+    if (
+      name === "intranetEvents" &&
+      entry.url &&
+      !safeHttpsUrl(String(entry.url))
+    ) {
+      throw new Error("INVALID_INTRANET_EVENT_URL");
+    }
     const reference = id ? doc(db, name, id) : doc(collection(db, name));
     const batch = writeBatch(db);
     batch.set(reference, entry);
@@ -1000,6 +1072,8 @@ function App() {
       ["intranetProjects", payload.intranetContent.projects],
       ["intranetMeetings", payload.intranetContent.meetings],
       ["intranetProfiles", payload.intranetContent.profiles],
+      ["intranetEvents", payload.intranetContent.events],
+      ["chatChannels", payload.intranetContent.channels],
     ];
     const batch = writeBatch(database);
     batch.set(
@@ -1862,6 +1936,19 @@ function App() {
                     )}
                   </div>
                   <div className="intranet-grid">
+                    <IntranetEvents
+                      events={visibleIntranetEvents}
+                      user={user}
+                    />
+                    <IntranetChat
+                      channels={visibleChatChannels}
+                      user={user}
+                      isAdmin={isAdmin}
+                      onManageChannels={() => {
+                        setAdminTab("chatChannels");
+                        setActiveAdmin(true);
+                      }}
+                    />
                     <section className="intranet-panel intranet-directory-panel">
                       <div className="intranet-panel-heading">
                         <span>TEAM DIRECTORY</span>
@@ -2437,6 +2524,8 @@ function App() {
           intranetProjects={intranetProjects.items}
           intranetMeetings={intranetMeetings.items}
           intranetProfiles={intranetProfiles.items}
+          intranetEvents={intranetEvents.items}
+          chatChannels={chatChannels.items}
           applications={applications}
           members={members}
           auditLogs={auditLogs}
@@ -2476,6 +2565,8 @@ type AdminProps = {
   intranetProjects: IntranetProject[];
   intranetMeetings: IntranetMeeting[];
   intranetProfiles: IntranetProfile[];
+  intranetEvents: IntranetEvent[];
+  chatChannels: ChatChannel[];
   applications: Application[];
   members: Member[];
   auditLogs: AdminAuditLog[];
@@ -2527,6 +2618,8 @@ function AdminPanel(props: AdminProps) {
     intranetProjects,
     intranetMeetings,
     intranetProfiles,
+    intranetEvents,
+    chatChannels,
     applications,
     members,
     auditLogs,
@@ -2598,6 +2691,8 @@ function AdminPanel(props: AdminProps) {
     intranetProjects,
     intranetMeetings,
     intranetProfiles,
+    intranetEvents,
+    chatChannels,
   };
   const labels: Record<AdminTab, string> = {
     dashboard: "운영 요약",
@@ -2612,6 +2707,8 @@ function AdminPanel(props: AdminProps) {
     intranetProjects: "프로젝트 현황",
     intranetMeetings: "회의 기록",
     intranetProfiles: "구성원 프로필",
+    intranetEvents: "내부 행사",
+    chatChannels: "메신저 채널",
     applications: "행사 신청",
     members: "구성원 권한",
     auditLogs: "활동 기록",
@@ -2803,6 +2900,13 @@ function AdminPanel(props: AdminProps) {
       ) {
         throw new Error("INVALID_PROJECT_URL");
       }
+      if (
+        name === "intranetEvents" &&
+        value.url &&
+        !safeHttpsUrl(String(value.url))
+      ) {
+        throw new Error("INVALID_INTRANET_EVENT_URL");
+      }
       if (name === "events") {
         const deadline = String(value.registrationDeadline || "");
         if (value.registrationOpen && !deadline) {
@@ -2830,9 +2934,12 @@ function AdminPanel(props: AdminProps) {
                   error.message === "INVALID_PROJECT_URL"
                 ? "프로젝트 링크는 https://로 시작하는 주소를 입력해 주세요."
                 : error instanceof Error &&
-                    error.message === "EVENT_DEADLINE_REQUIRED"
-                  ? "신청 접수를 열려면 신청 마감일을 입력해 주세요."
-                  : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
+                    error.message === "INVALID_INTRANET_EVENT_URL"
+                  ? "내부 행사 링크는 https://로 시작하는 주소를 입력해 주세요."
+                  : error instanceof Error &&
+                      error.message === "EVENT_DEADLINE_REQUIRED"
+                    ? "신청 접수를 열려면 신청 마감일을 입력해 주세요."
+                    : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
       );
     } finally {
       setSaving(false);
@@ -3008,7 +3115,7 @@ function AdminPanel(props: AdminProps) {
   }
   function exportContentBackup() {
     const backup = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       exportedAt: new Date().toISOString(),
       site: { overview, privacy },
       publicContent: { history, notices, products, events },
@@ -3018,6 +3125,8 @@ function AdminPanel(props: AdminProps) {
         projects: intranetProjects,
         meetings: intranetMeetings,
         profiles: intranetProfiles,
+        events: intranetEvents,
+        channels: chatChannels,
       },
     };
     const url = URL.createObjectURL(
@@ -3090,7 +3199,15 @@ function AdminPanel(props: AdminProps) {
       ) : (
         <input
           required={required}
-          type={key === "url" ? "url" : key === "date" ? "date" : "text"}
+          type={
+            key === "url"
+              ? "url"
+              : key === "date"
+                ? "date"
+                : key === "startTime" || key === "endTime"
+                  ? "time"
+                  : "text"
+          }
           value={String(entryDraft[key] ?? "")}
           onChange={(e) =>
             setEntryDraft({ ...entryDraft, [key]: e.target.value })
@@ -3928,7 +4045,7 @@ function AdminPanel(props: AdminProps) {
             <div className="admin-list-heading">
               <p className="admin-help">
                 게시 상태인 항목만
-                {tab.startsWith("intranet")
+                {tab.startsWith("intranet") || tab === "chatChannels"
                   ? " 구성원 인트라넷에 표시됩니다."
                   : " 공개 사이트에 표시됩니다."}
               </p>
@@ -4155,6 +4272,42 @@ function AdminPanel(props: AdminProps) {
                     {orderField}
                   </>
                 )}
+                {tab === "intranetEvents" && (
+                  <>
+                    {textField("title", "내부 행사 이름", true)}
+                    {textField("category", "행사 유형", true)}
+                    {textField("description", "행사 설명", true, true)}
+                    {textField("date", "행사 날짜", true)}
+                    {textField("startTime", "시작 시간")}
+                    {textField("endTime", "종료 시간")}
+                    {textField("location", "장소 또는 접속 안내")}
+                    {textField("organizer", "주최자 또는 팀")}
+                    {textField("url", "행사 링크 (HTTPS, 선택)")}
+                    {orderField}
+                  </>
+                )}
+                {tab === "chatChannels" && (
+                  <>
+                    {textField("name", "채널 이름", true)}
+                    {textField("description", "채널 설명", false, true)}
+                    <label>
+                      채널 유형
+                      <select
+                        value={String(entryDraft.kind || "chat")}
+                        onChange={(event) =>
+                          setEntryDraft({
+                            ...entryDraft,
+                            kind: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="chat">일반 대화</option>
+                        <option value="announcement">관리자 공지 전용</option>
+                      </select>
+                    </label>
+                    {orderField}
+                  </>
+                )}
                 <label className="admin-check">
                   <input
                     type="checkbox"
@@ -4166,7 +4319,7 @@ function AdminPanel(props: AdminProps) {
                       })
                     }
                   />{" "}
-                  {tab.startsWith("intranet")
+                  {tab.startsWith("intranet") || tab === "chatChannels"
                     ? "인트라넷에 게시"
                     : "공개 사이트에 게시"}
                 </label>
