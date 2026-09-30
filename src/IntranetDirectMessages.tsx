@@ -39,9 +39,11 @@ function messageTime(message: DirectMessage) {
 
 export function IntranetDirectMessages({
   user,
+  displayName,
   embedded = false,
 }: {
   user: User;
+  displayName: string;
   embedded?: boolean;
 }) {
   const [identities, setIdentities] = useState<MemberIdentity[]>([]);
@@ -53,7 +55,7 @@ export function IntranetDirectMessages({
   const [sending, setSending] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const ownName = user.displayName || user.email || "구성원";
+  const ownName = displayName;
 
   useEffect(() => {
     if (!db) return;

@@ -371,6 +371,7 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMember, setIsMember] = useState(false);
+  const [memberDisplayName, setMemberDisplayName] = useState("");
   const [hasAdminClaim, setHasAdminClaim] = useState(false);
   const [hasMemberClaim, setHasMemberClaim] = useState(false);
   const [authReady, setAuthReady] = useState(!auth);
@@ -486,6 +487,7 @@ function App() {
         setHasMemberClaim(false);
         setIsAdmin(false);
         setIsMember(false);
+        setMemberDisplayName("");
       }
       setAuthReady(true);
     });
@@ -495,6 +497,7 @@ function App() {
     if (!db || !user?.email) {
       setIsAdmin(hasAdminClaim);
       setIsMember(hasMemberClaim);
+      setMemberDisplayName("");
       return;
     }
     const email = user.email.toLocaleLowerCase("en-US");
@@ -503,12 +506,18 @@ function App() {
       (snapshot) => {
         const data = snapshot.data();
         const active = snapshot.exists() && data?.active === true;
+        setMemberDisplayName(
+          active && typeof data?.displayName === "string"
+            ? data.displayName.trim()
+            : "",
+        );
         setIsAdmin(hasAdminClaim || (active && data?.adminAccess === true));
         setIsMember(hasMemberClaim || (active && data?.memberAccess === true));
       },
       () => {
         setIsAdmin(hasAdminClaim);
         setIsMember(hasMemberClaim);
+        setMemberDisplayName("");
       },
     );
   }, [hasAdminClaim, hasMemberClaim, user]);
@@ -1942,10 +1951,22 @@ function App() {
                     <IntranetEvents
                       events={visibleIntranetEvents}
                       user={user}
+                      displayName={
+                        memberDisplayName ||
+                        user.displayName ||
+                        user.email ||
+                        "구성원"
+                      }
                     />
                     <IntranetMessenger
                       channels={visibleChatChannels}
                       user={user}
+                      displayName={
+                        memberDisplayName ||
+                        user.displayName ||
+                        user.email ||
+                        "구성원"
+                      }
                       isAdmin={isAdmin}
                       onManageChannels={() => {
                         setAdminTab("chatChannels");

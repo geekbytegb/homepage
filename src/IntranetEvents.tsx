@@ -32,9 +32,11 @@ function safeHttpsUrl(value: string) {
 export function IntranetEvents({
   events,
   user,
+  displayName,
 }: {
   events: IntranetEvent[];
   user: User;
+  displayName: string;
 }) {
   const [responses, setResponses] = useState<IntranetEventRsvp[]>([]);
   const [savingEventId, setSavingEventId] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export function IntranetEvents({
         await setDoc(doc(db, "intranetEventRsvps", id), {
           eventId,
           userId: user.uid,
-          displayName: user.displayName || user.email || "구성원",
+          displayName,
           response,
           updatedAt: serverTimestamp(),
         });

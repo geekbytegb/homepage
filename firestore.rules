@@ -27,10 +27,14 @@ service cloud.firestore {
         && (request.auth.token.get('member', false) == true || directoryMember());
     }
     function authDisplayName() {
-      return request.auth.token.get(
-        'name',
-        request.auth.token.get('email', '구성원')
-      );
+      return signedIn()
+        && request.auth.token.get('email', '') is string
+        && request.auth.token.get('email', '').size() > 0
+        && exists(/databases/$(database)/documents/members/$(request.auth.token.get('email', '')))
+        && get(/databases/$(database)/documents/members/$(request.auth.token.get('email', ''))).data.get('displayName', '') is string
+        && get(/databases/$(database)/documents/members/$(request.auth.token.get('email', ''))).data.get('displayName', '').size() > 0
+        ? get(/databases/$(database)/documents/members/$(request.auth.token.get('email', ''))).data.displayName
+        : request.auth.token.get('name', request.auth.token.get('email', '구성원'));
     }
     function publishedChatChannel(channelId) {
       return exists(/databases/$(database)/documents/chatChannels/$(channelId))

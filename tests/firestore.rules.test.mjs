@@ -482,6 +482,27 @@ test("members can create identities and access only their direct conversations",
     ),
   );
   await assertSucceeds(deleteDoc(ownMessage));
+
+  const directoryMember = environment
+    .authenticatedContext("listed-name", {
+      email: "listed@example.com",
+      name: "Token Name",
+    })
+    .firestore();
+  await assertSucceeds(
+    setDoc(doc(directoryMember, "memberIdentities", "listed-name"), {
+      uid: "listed-name",
+      displayName: "Listed Member",
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    setDoc(doc(directoryMember, "memberIdentities", "listed-name"), {
+      uid: "listed-name",
+      displayName: "Token Name",
+      updatedAt: serverTimestamp(),
+    }),
+  );
 });
 
 test("administrators must append an audit log before reading direct messages", async () => {

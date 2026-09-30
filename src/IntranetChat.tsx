@@ -55,12 +55,14 @@ function timeLabel(date: Date | null) {
 export function IntranetChat({
   channels,
   user,
+  displayName,
   isAdmin,
   onManageChannels,
   embedded = false,
 }: {
   channels: ChatChannel[];
   user: User;
+  displayName: string;
   isAdmin: boolean;
   onManageChannels: () => void;
   embedded?: boolean;
@@ -127,7 +129,7 @@ export function IntranetChat({
         collection(db, "chatChannels", selectedChannel.id, "messages"),
         {
           authorUid: user.uid,
-          authorName: user.displayName || user.email || "구성원",
+          authorName: displayName,
           text,
           createdAt: serverTimestamp(),
         },

@@ -8,11 +8,13 @@ import type { ChatChannel } from "./types";
 export function IntranetMessenger({
   channels,
   user,
+  displayName,
   isAdmin,
   onManageChannels,
 }: {
   channels: ChatChannel[];
   user: User;
+  displayName: string;
   isAdmin: boolean;
   onManageChannels: () => void;
 }) {
@@ -56,12 +58,17 @@ export function IntranetMessenger({
           <IntranetChat
             channels={channels}
             user={user}
+            displayName={displayName}
             isAdmin={isAdmin}
             onManageChannels={onManageChannels}
             embedded
           />
         ) : (
-          <IntranetDirectMessages user={user} embedded />
+          <IntranetDirectMessages
+            user={user}
+            displayName={displayName}
+            embedded
+          />
         )}
       </div>
     </section>
