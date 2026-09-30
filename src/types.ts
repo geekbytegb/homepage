@@ -58,6 +58,13 @@ export type IntranetMeeting = Entry & {
   decisions: string;
   nextActions: string;
 };
+export type IntranetProfile = Entry & {
+  displayName: string;
+  role: string;
+  bio: string;
+  skills: string;
+  order?: number;
+};
 export type Product = Entry & {
   name: string;
   category: string;

@@ -61,19 +61,23 @@ service cloud.firestore {
       allow write: if admin();
     }
     match /intranetNotices/{itemId} {
-      allow read: if member() || admin();
+      allow read: if admin() || (member() && resource.data.published == true);
       allow write: if admin();
     }
     match /intranetResources/{itemId} {
-      allow read: if member() || admin();
+      allow read: if admin() || (member() && resource.data.published == true);
       allow write: if admin();
     }
     match /intranetProjects/{itemId} {
-      allow read: if member() || admin();
+      allow read: if admin() || (member() && resource.data.published == true);
       allow write: if admin();
     }
     match /intranetMeetings/{itemId} {
-      allow read: if member() || admin();
+      allow read: if admin() || (member() && resource.data.published == true);
+      allow write: if admin();
+    }
+    match /intranetProfiles/{itemId} {
+      allow read: if admin() || (member() && resource.data.published == true);
       allow write: if admin();
     }
     match /members/{memberEmail} {

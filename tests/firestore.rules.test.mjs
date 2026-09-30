@@ -63,6 +63,21 @@ before(async () => {
       title: "Meeting",
       published: true,
     });
+    await setDoc(doc(store, "intranetNotices", "internal-draft"), {
+      title: "Internal draft",
+      body: "Administrators only",
+      published: false,
+    });
+    await setDoc(doc(store, "intranetProfiles", "profile"), {
+      displayName: "Geek Byte Member",
+      role: "Developer",
+      published: true,
+    });
+    await setDoc(doc(store, "intranetProfiles", "profile-draft"), {
+      displayName: "Draft Member",
+      role: "Developer",
+      published: false,
+    });
     await setDoc(doc(store, "members", "listed@example.com"), {
       email: "listed@example.com",
       displayName: "Listed Member",
@@ -121,10 +136,25 @@ test("a signed-in visitor cannot gain admin write access", async () => {
 test("only members and admins can read intranet content", async () => {
   const visitor = environment.authenticatedContext("visitor").firestore();
   await assertFails(getDoc(doc(visitor, "intranetNotices", "internal")));
+  await assertFails(getDocs(collection(visitor, "intranetProfiles")));
   const member = environment
     .authenticatedContext("member", { member: true })
     .firestore();
   await assertSucceeds(getDoc(doc(member, "intranetNotices", "internal")));
+  await assertFails(getDoc(doc(member, "intranetNotices", "internal-draft")));
+  await assertSucceeds(getDoc(doc(member, "intranetProfiles", "profile")));
+  await assertFails(getDoc(doc(member, "intranetProfiles", "profile-draft")));
+  const publishedProfiles = await assertSucceeds(
+    getDocs(
+      query(
+        collection(member, "intranetProfiles"),
+        where("published", "==", true),
+      ),
+    ),
+  );
+  if (publishedProfiles.size !== 1)
+    throw new Error("Unexpected intranet profile count");
+  await assertFails(getDocs(collection(member, "intranetProfiles")));
   await assertFails(
     setDoc(doc(member, "intranetNotices", "member-write"), {
       title: "Not allowed",
@@ -161,6 +191,7 @@ test("only members and admins can read intranet content", async () => {
       published: true,
     }),
   );
+  await assertSucceeds(getDoc(doc(admin, "intranetProfiles", "profile-draft")));
 });
 
 test("an admin claim grants content write and application read access", async () => {

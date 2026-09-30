@@ -54,6 +54,7 @@ import {
   type IntranetResource,
   type IntranetProject,
   type IntranetMeeting,
+  type IntranetProfile,
   type Member,
   type Notice,
   type Overview,
@@ -71,6 +72,7 @@ type CollectionName =
   | "intranetResources"
   | "intranetProjects"
   | "intranetMeetings"
+  | "intranetProfiles"
   | "applications";
 type AdminTab =
   | "dashboard"
@@ -261,6 +263,14 @@ const emptyEditors: Record<
     nextActions: "",
     published: false,
   },
+  intranetProfiles: {
+    displayName: "",
+    role: "",
+    bio: "",
+    skills: "",
+    order: 1,
+    published: false,
+  },
 };
 
 function useEntries<T extends Entry>(
@@ -280,10 +290,9 @@ function useEntries<T extends Entry>(
       return;
     }
     const source = collection(db, name);
-    const target =
-      admin || memberOnly
-        ? source
-        : query(source, where("published", "==", true));
+    const target = admin
+      ? source
+      : query(source, where("published", "==", true));
     return onSnapshot(
       target,
       (snapshot) => {
@@ -379,6 +388,13 @@ function App() {
   );
   const intranetMeetings = useEntries<IntranetMeeting>(
     "intranetMeetings",
+    isAdmin,
+    [],
+    true,
+    isMember,
+  );
+  const intranetProfiles = useEntries<IntranetProfile>(
+    "intranetProfiles",
     isAdmin,
     [],
     true,
@@ -624,6 +640,17 @@ function App() {
         .sort((a, b) => b.date.localeCompare(a.date)),
     [intranetMeetings.items],
   );
+  const visibleIntranetProfiles = useMemo(
+    () =>
+      intranetProfiles.items
+        .filter((item) => item.published)
+        .sort(
+          (a, b) =>
+            displayOrder(a) - displayOrder(b) ||
+            a.displayName.localeCompare(b.displayName, "ko-KR"),
+        ),
+    [intranetProfiles.items],
+  );
   const contentError =
     page === "/about"
       ? history.error
@@ -637,7 +664,8 @@ function App() {
               ? intranetNotices.error ||
                 intranetResources.error ||
                 intranetProjects.error ||
-                intranetMeetings.error
+                intranetMeetings.error ||
+                intranetProfiles.error
               : "";
   const privacyReady = Boolean(
     privacy.published &&
@@ -1750,6 +1778,41 @@ function App() {
                     )}
                   </div>
                   <div className="intranet-grid">
+                    <section className="intranet-panel intranet-directory-panel">
+                      <div className="intranet-panel-heading">
+                        <span>TEAM DIRECTORY</span>
+                        <strong>{visibleIntranetProfiles.length}</strong>
+                      </div>
+                      <div className="intranet-profile-list">
+                        {visibleIntranetProfiles.length ? (
+                          visibleIntranetProfiles.map((profile) => (
+                            <article
+                              className="intranet-profile"
+                              key={profile.id}
+                            >
+                              <span
+                                className="intranet-profile-avatar"
+                                aria-hidden="true"
+                              >
+                                {profile.displayName.trim().slice(0, 1) || "G"}
+                              </span>
+                              <div>
+                                <span>{profile.role || "TEAM MEMBER"}</span>
+                                <h2>{profile.displayName}</h2>
+                                {profile.bio && <p>{profile.bio}</p>}
+                                {profile.skills && (
+                                  <small>{profile.skills}</small>
+                                )}
+                              </div>
+                            </article>
+                          ))
+                        ) : (
+                          <p className="intranet-empty">
+                            공개된 구성원 프로필이 없습니다.
+                          </p>
+                        )}
+                      </div>
+                    </section>
                     <section className="intranet-panel">
                       <div className="intranet-panel-heading">
                         <span>INTERNAL NOTICE</span>
@@ -2289,6 +2352,7 @@ function App() {
           intranetResources={intranetResources.items}
           intranetProjects={intranetProjects.items}
           intranetMeetings={intranetMeetings.items}
+          intranetProfiles={intranetProfiles.items}
           applications={applications}
           members={members}
           auditLogs={auditLogs}
@@ -2325,6 +2389,7 @@ type AdminProps = {
   intranetResources: IntranetResource[];
   intranetProjects: IntranetProject[];
   intranetMeetings: IntranetMeeting[];
+  intranetProfiles: IntranetProfile[];
   applications: Application[];
   members: Member[];
   auditLogs: AdminAuditLog[];
@@ -2373,6 +2438,7 @@ function AdminPanel(props: AdminProps) {
     intranetResources,
     intranetProjects,
     intranetMeetings,
+    intranetProfiles,
     applications,
     members,
     auditLogs,
@@ -2434,6 +2500,7 @@ function AdminPanel(props: AdminProps) {
     intranetResources,
     intranetProjects,
     intranetMeetings,
+    intranetProfiles,
   };
   const labels: Record<AdminTab, string> = {
     dashboard: "운영 요약",
@@ -2447,6 +2514,7 @@ function AdminPanel(props: AdminProps) {
     intranetResources: "내부 자료",
     intranetProjects: "프로젝트 현황",
     intranetMeetings: "회의 기록",
+    intranetProfiles: "구성원 프로필",
     applications: "행사 신청",
     members: "구성원 권한",
     auditLogs: "활동 기록",
@@ -2795,7 +2863,7 @@ function AdminPanel(props: AdminProps) {
   }
   function exportContentBackup() {
     const backup = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       exportedAt: new Date().toISOString(),
       site: { overview, privacy },
       publicContent: { history, notices, products, events },
@@ -2804,6 +2872,7 @@ function AdminPanel(props: AdminProps) {
         resources: intranetResources,
         projects: intranetProjects,
         meetings: intranetMeetings,
+        profiles: intranetProfiles,
       },
     };
     const url = URL.createObjectURL(
@@ -3739,6 +3808,15 @@ function AdminPanel(props: AdminProps) {
                     {textField("nextActions", "다음 할 일", false, true)}
                   </>
                 )}
+                {tab === "intranetProfiles" && (
+                  <>
+                    {textField("displayName", "표시 이름", true)}
+                    {textField("role", "역할 또는 담당 분야", true)}
+                    {textField("bio", "소개", false, true)}
+                    {textField("skills", "기술·관심 분야")}
+                    {orderField}
+                  </>
+                )}
                 <label className="admin-check">
                   <input
                     type="checkbox"
@@ -3789,14 +3867,18 @@ function AdminPanel(props: AdminProps) {
                             ? String(item.title)
                             : "name" in item
                               ? String(item.name)
-                              : item.id}
+                              : "displayName" in item
+                                ? String(item.displayName)
+                                : item.id}
                         </h3>
                         <p>
                           {"description" in item
                             ? String(item.description)
                             : "body" in item
                               ? String(item.body)
-                              : ""}
+                              : "bio" in item
+                                ? String(item.bio)
+                                : ""}
                         </p>
                       </div>
                       <div className="admin-row-actions">
@@ -3841,7 +3923,9 @@ function AdminPanel(props: AdminProps) {
                                 ? String(item.title)
                                 : "name" in item
                                   ? String(item.name)
-                                  : "항목"
+                                  : "displayName" in item
+                                    ? String(item.displayName)
+                                    : "항목"
                             } 삭제`}
                           >
                             <Trash2 size={17} />

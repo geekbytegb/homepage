@@ -2221,8 +2221,62 @@ button.admin-dashboard-row:hover {
   padding: 28px 0 10px;
 }
 .intranet-project-panel,
-.intranet-meeting-panel {
+.intranet-meeting-panel,
+.intranet-directory-panel {
   grid-column: 1 / -1;
+}
+.intranet-profile-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 18px;
+}
+.intranet-profile {
+  display: flex;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #303747;
+  background: #151a24;
+}
+.intranet-profile-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #26304d;
+  color: #d8deff;
+  font-size: 18px;
+  font-weight: 800;
+}
+.intranet-profile > div {
+  min-width: 0;
+}
+.intranet-profile > div > span {
+  color: #8395ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.intranet-profile h2 {
+  margin: 5px 0 8px;
+  font-size: 18px;
+  letter-spacing: -0.035em;
+}
+.intranet-profile p {
+  margin: 0;
+  color: #9ba3b4;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+.intranet-profile small {
+  display: block;
+  margin-top: 11px;
+  color: #c2ccff;
+  line-height: 1.5;
 }
 .intranet-project-list,
 .intranet-meeting-list {
@@ -2665,7 +2719,8 @@ button.admin-dashboard-row:hover {
     padding: 20px;
   }
   .intranet-project-list,
-  .intranet-meeting-list {
+  .intranet-meeting-list,
+  .intranet-profile-list {
     grid-template-columns: 1fr;
   }
   .admin-row {
