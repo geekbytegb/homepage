@@ -106,6 +106,187 @@ service cloud.firestore {
             && request.resource.data.retention.size() > 0
             && request.resource.data.body.size() >= 80));
     }
+    function boundedString(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+    function requiredString(value, maxLength) {
+      return boundedString(value, maxLength) && value.size() > 0;
+    }
+    function optionalHttpsUrl(value) {
+      return boundedString(value, 2048)
+        && (value.size() == 0 || value.matches('^https://.+$'));
+    }
+    function validDisplayOrder(data) {
+      return data.get('order', 1) is number
+        && data.get('order', 1) >= 1
+        && data.get('order', 1) <= 100000;
+    }
+    function validHistoryDocument() {
+      return request.resource.data.keys().hasOnly(['year', 'title', 'description', 'order', 'published'])
+        && request.resource.data.keys().hasAll(['year', 'title', 'description', 'order', 'published'])
+        && requiredString(request.resource.data.year, 40)
+        && requiredString(request.resource.data.title, 200)
+        && requiredString(request.resource.data.description, 5000)
+        && request.resource.data.published is bool
+        && validDisplayOrder(request.resource.data);
+    }
+    function validNoticeDocument() {
+      return request.resource.data.keys().hasOnly(['title', 'body', 'date', 'pinned', 'published'])
+        && request.resource.data.keys().hasAll(['title', 'body', 'date', 'pinned', 'published'])
+        && requiredString(request.resource.data.title, 200)
+        && requiredString(request.resource.data.body, 20000)
+        && requiredString(request.resource.data.date, 40)
+        && request.resource.data.pinned is bool
+        && request.resource.data.published is bool;
+    }
+    function validProductDocument() {
+      return request.resource.data.keys().hasOnly([
+          'name', 'category', 'description', 'url', 'status', 'imageUrl',
+          'imageAlt', 'order', 'published'
+        ])
+        && request.resource.data.keys().hasAll([
+          'name', 'category', 'description', 'url', 'status', 'imageUrl',
+          'imageAlt', 'published'
+        ])
+        && requiredString(request.resource.data.name, 200)
+        && requiredString(request.resource.data.category, 100)
+        && requiredString(request.resource.data.description, 5000)
+        && optionalHttpsUrl(request.resource.data.url)
+        && boundedString(request.resource.data.status, 100)
+        && optionalHttpsUrl(request.resource.data.imageUrl)
+        && boundedString(request.resource.data.imageAlt, 300)
+        && (request.resource.data.imageUrl.size() == 0
+          || request.resource.data.published == false
+          || request.resource.data.imageAlt.size() > 0)
+        && request.resource.data.published is bool
+        && validDisplayOrder(request.resource.data);
+    }
+    function validEventDocument() {
+      return request.resource.data.keys().hasOnly([
+          'title', 'category', 'description', 'schedule', 'format', 'location',
+          'capacity', 'registrationDeadline', 'registrationDeadlineAt',
+          'registrationOpen', 'order', 'published'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title', 'category', 'description', 'schedule', 'format', 'location',
+          'capacity', 'registrationDeadline', 'registrationOpen', 'order',
+          'published'
+        ])
+        && requiredString(request.resource.data.title, 200)
+        && requiredString(request.resource.data.category, 100)
+        && requiredString(request.resource.data.description, 10000)
+        && boundedString(request.resource.data.schedule, 300)
+        && boundedString(request.resource.data.format, 100)
+        && boundedString(request.resource.data.location, 500)
+        && boundedString(request.resource.data.capacity, 100)
+        && boundedString(request.resource.data.registrationDeadline, 40)
+        && (request.resource.data.get('registrationDeadlineAt', null) == null
+          || request.resource.data.registrationDeadlineAt is timestamp)
+        && request.resource.data.registrationOpen is bool
+        && (request.resource.data.registrationOpen == false
+          || (request.resource.data.registrationDeadline.size() > 0
+            && request.resource.data.registrationDeadlineAt is timestamp))
+        && request.resource.data.published is bool
+        && validDisplayOrder(request.resource.data);
+    }
+    function validIntranetResourceDocument() {
+      return request.resource.data.keys().hasOnly([
+          'title', 'description', 'category', 'url', 'order', 'published'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title', 'description', 'category', 'url', 'published'
+        ])
+        && requiredString(request.resource.data.title, 200)
+        && requiredString(request.resource.data.description, 5000)
+        && requiredString(request.resource.data.category, 100)
+        && requiredString(request.resource.data.url, 2048)
+        && request.resource.data.url.matches('^https://.+$')
+        && request.resource.data.published is bool
+        && validDisplayOrder(request.resource.data);
+    }
+    function validIntranetProjectDocument() {
+      return request.resource.data.keys().hasOnly([
+          'title', 'summary', 'owner', 'status', 'progress', 'url', 'order',
+          'published'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title', 'summary', 'owner', 'status', 'progress', 'url', 'published'
+        ])
+        && requiredString(request.resource.data.title, 200)
+        && requiredString(request.resource.data.summary, 10000)
+        && boundedString(request.resource.data.owner, 200)
+        && request.resource.data.status in ['planning', 'active', 'blocked', 'done']
+        && request.resource.data.progress is number
+        && request.resource.data.progress >= 0
+        && request.resource.data.progress <= 100
+        && optionalHttpsUrl(request.resource.data.url)
+        && request.resource.data.published is bool
+        && validDisplayOrder(request.resource.data);
+    }
+    function validIntranetMeetingDocument() {
+      return request.resource.data.keys().hasOnly([
+          'title', 'date', 'summary', 'decisions', 'nextActions', 'published'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title', 'date', 'summary', 'decisions', 'nextActions', 'published'
+        ])
+        && requiredString(request.resource.data.title, 200)
+        && requiredString(request.resource.data.date, 40)
+        && requiredString(request.resource.data.summary, 10000)
+        && boundedString(request.resource.data.decisions, 10000)
+        && boundedString(request.resource.data.nextActions, 10000)
+        && request.resource.data.published is bool;
+    }
+    function validIntranetProfileDocument() {
+      return request.resource.data.keys().hasOnly([
+          'displayName', 'role', 'bio', 'skills', 'order', 'published'
+        ])
+        && request.resource.data.keys().hasAll([
+          'displayName', 'role', 'bio', 'skills', 'published'
+        ])
+        && requiredString(request.resource.data.displayName, 100)
+        && requiredString(request.resource.data.role, 200)
+        && boundedString(request.resource.data.bio, 5000)
+        && boundedString(request.resource.data.skills, 2000)
+        && request.resource.data.published is bool
+        && validDisplayOrder(request.resource.data);
+    }
+    function validIntranetEventDocument() {
+      return request.resource.data.keys().hasOnly([
+          'title', 'category', 'description', 'date', 'startTime', 'endTime',
+          'location', 'organizer', 'url', 'order', 'published'
+        ])
+        && request.resource.data.keys().hasAll([
+          'title', 'category', 'description', 'date', 'startTime', 'endTime',
+          'location', 'organizer', 'url', 'published'
+        ])
+        && requiredString(request.resource.data.title, 200)
+        && requiredString(request.resource.data.category, 100)
+        && requiredString(request.resource.data.description, 10000)
+        && requiredString(request.resource.data.date, 40)
+        && boundedString(request.resource.data.startTime, 10)
+        && boundedString(request.resource.data.endTime, 10)
+        && boundedString(request.resource.data.location, 500)
+        && boundedString(request.resource.data.organizer, 200)
+        && optionalHttpsUrl(request.resource.data.url)
+        && request.resource.data.published is bool
+        && validDisplayOrder(request.resource.data);
+    }
+    function validChatChannelDocument() {
+      return request.resource.data.keys().hasOnly([
+          'name', 'description', 'kind', 'order', 'published', 'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'name', 'description', 'kind', 'published'
+        ])
+        && requiredString(request.resource.data.name, 80)
+        && boundedString(request.resource.data.description, 1000)
+        && request.resource.data.kind in ['chat', 'announcement']
+        && request.resource.data.published is bool
+        && validDisplayOrder(request.resource.data)
+        && (request.resource.data.get('createdAt', null) == null
+          || request.resource.data.createdAt is timestamp);
+    }
     function validMemberDocument(memberEmail) {
       return request.resource.data.keys().hasOnly([
           'email', 'displayName', 'active', 'adminAccess', 'memberAccess', 'updatedAt'
@@ -134,43 +315,53 @@ service cloud.firestore {
     }
     match /history/{itemId} {
       allow read: if publicOrAdmin();
-      allow write: if admin();
+      allow create, update: if admin() && validHistoryDocument();
+      allow delete: if admin();
     }
     match /notices/{itemId} {
       allow read: if publicOrAdmin();
-      allow write: if admin();
+      allow create, update: if admin() && validNoticeDocument();
+      allow delete: if admin();
     }
     match /products/{itemId} {
       allow read: if publicOrAdmin();
-      allow write: if admin();
+      allow create, update: if admin() && validProductDocument();
+      allow delete: if admin();
     }
     match /events/{eventId} {
       allow read: if publicOrAdmin();
-      allow write: if admin();
+      allow create, update: if admin() && validEventDocument();
+      allow delete: if admin();
     }
     match /intranetNotices/{itemId} {
       allow read: if admin() || (member() && resource.data.published == true);
-      allow write: if admin();
+      allow create, update: if admin() && validNoticeDocument();
+      allow delete: if admin();
     }
     match /intranetResources/{itemId} {
       allow read: if admin() || (member() && resource.data.published == true);
-      allow write: if admin();
+      allow create, update: if admin() && validIntranetResourceDocument();
+      allow delete: if admin();
     }
     match /intranetProjects/{itemId} {
       allow read: if admin() || (member() && resource.data.published == true);
-      allow write: if admin();
+      allow create, update: if admin() && validIntranetProjectDocument();
+      allow delete: if admin();
     }
     match /intranetMeetings/{itemId} {
       allow read: if admin() || (member() && resource.data.published == true);
-      allow write: if admin();
+      allow create, update: if admin() && validIntranetMeetingDocument();
+      allow delete: if admin();
     }
     match /intranetProfiles/{itemId} {
       allow read: if admin() || (member() && resource.data.published == true);
-      allow write: if admin();
+      allow create, update: if admin() && validIntranetProfileDocument();
+      allow delete: if admin();
     }
     match /intranetEvents/{eventId} {
       allow read: if admin() || (member() && resource.data.published == true);
-      allow write: if admin();
+      allow create, update: if admin() && validIntranetEventDocument();
+      allow delete: if admin();
     }
     match /intranetEventRsvps/{rsvpId} {
       allow read: if admin() || member();
@@ -196,7 +387,8 @@ service cloud.firestore {
     }
     match /chatChannels/{channelId} {
       allow read: if admin() || (member() && resource.data.published == true);
-      allow write: if admin();
+      allow create, update: if admin() && validChatChannelDocument();
+      allow delete: if admin();
 
       match /messages/{messageId} {
         allow read: if canReadChat(channelId);

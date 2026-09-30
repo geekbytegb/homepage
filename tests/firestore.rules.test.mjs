@@ -21,6 +21,19 @@ import {
 } from "firebase/firestore";
 
 let environment;
+
+function validProduct(name = "Approved") {
+  return {
+    name,
+    category: "Service",
+    description: "A production ready Geek Byte service.",
+    url: "https://example.com/product",
+    status: "Available",
+    imageUrl: "https://example.com/product.png",
+    imageAlt: `${name} preview`,
+    published: true,
+  };
+}
 before(async () => {
   environment = await initializeTestEnvironment({
     projectId: "demo-geek-byte",
@@ -254,6 +267,17 @@ test("only members and admins can read intranet content", async () => {
   await assertSucceeds(
     setDoc(doc(admin, "intranetResources", "handbook"), {
       title: "Handbook",
+      description: "Internal handbook",
+      category: "Policy",
+      url: "https://example.com/handbook",
+      published: true,
+    }),
+  );
+  await assertFails(
+    setDoc(doc(admin, "chatChannels", "invalid-channel"), {
+      name: "Invalid",
+      description: "Unexpected channel type",
+      kind: "external",
       published: true,
     }),
   );
@@ -265,9 +289,12 @@ test("an admin claim grants content write and application read access", async ()
     .authenticatedContext("admin", { admin: true })
     .firestore();
   await assertSucceeds(
-    setDoc(doc(store, "products", "approved"), {
-      name: "Approved",
-      published: true,
+    setDoc(doc(store, "products", "approved"), validProduct()),
+  );
+  await assertFails(
+    setDoc(doc(store, "products", "unsafe-link"), {
+      ...validProduct("Unsafe"),
+      url: "http://example.com/product",
     }),
   );
   await assertSucceeds(getDocs(collection(store, "applications")));
@@ -621,10 +648,10 @@ test("directory administrator and intranet member roles stay independent", async
     })
     .firestore();
   await assertSucceeds(
-    setDoc(doc(directoryAdmin, "products", "directory-approved"), {
-      name: "Approved",
-      published: true,
-    }),
+    setDoc(
+      doc(directoryAdmin, "products", "directory-approved"),
+      validProduct(),
+    ),
   );
   await assertFails(
     setDoc(doc(directoryAdmin, "members", "mismatch@example.com"), {

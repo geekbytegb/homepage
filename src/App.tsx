@@ -95,6 +95,49 @@ function privacyNoticeReady(privacy: Privacy) {
   );
 }
 
+const contentFieldLimits: Record<string, number> = {
+  year: 40,
+  title: 200,
+  name: 200,
+  displayName: 100,
+  category: 100,
+  status: 100,
+  role: 200,
+  date: 40,
+  startTime: 10,
+  endTime: 10,
+  schedule: 300,
+  format: 100,
+  location: 500,
+  capacity: 100,
+  registrationDeadline: 40,
+  owner: 200,
+  organizer: 200,
+  url: 2048,
+  imageUrl: 2048,
+  imageAlt: 300,
+  body: 20000,
+  description: 10000,
+  summary: 10000,
+  decisions: 10000,
+  nextActions: 10000,
+  bio: 5000,
+  skills: 2000,
+};
+
+function contentFieldLimit(collectionName: string, fieldName: string) {
+  if (
+    fieldName === "description" &&
+    ["history", "products", "intranetResources"].includes(collectionName)
+  ) {
+    return 5000;
+  }
+  if (collectionName === "chatChannels" && fieldName === "name") return 80;
+  if (collectionName === "chatChannels" && fieldName === "description")
+    return 1000;
+  return contentFieldLimits[fieldName];
+}
+
 type CollectionName =
   | "history"
   | "notices"
@@ -3228,6 +3271,7 @@ function AdminPanel(props: AdminProps) {
       {multiline ? (
         <textarea
           required={required}
+          maxLength={contentFieldLimit(tab, key)}
           value={String(entryDraft[key] ?? "")}
           onChange={(e) =>
             setEntryDraft({ ...entryDraft, [key]: e.target.value })
@@ -3237,6 +3281,7 @@ function AdminPanel(props: AdminProps) {
       ) : (
         <input
           required={required}
+          maxLength={contentFieldLimit(tab, key)}
           type={
             key === "url"
               ? "url"
