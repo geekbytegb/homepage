@@ -13,6 +13,8 @@
     "test:rules": "node --test tests/firestore.rules.test.mjs",
     "test:rules:emulator": "npx firebase-tools@15.30.2 emulators:exec --project demo-geek-byte --only firestore \"npm run test:rules\"",
     "test:backup": "node --test tests/content-backup.test.mjs",
+    "test:readiness": "node --test tests/readiness.test.mjs",
+    "test:unit": "npm run test:backup && npm run test:readiness",
     "grant-admin": "node scripts/grant-admin.mjs"
   },
   "dependencies": {

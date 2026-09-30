@@ -49,7 +49,8 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { auth, configured, db } from "./firebase";
+import { appCheckConfigured, auth, configured, db } from "./firebase";
+import { buildLaunchReadiness } from "./readiness";
 import {
   contentBackupCount,
   parseContentBackup,
@@ -2672,6 +2673,43 @@ function AdminPanel(props: AdminProps) {
   const intranetMembers = members.filter(
     (item) => item.active && item.memberAccess,
   ).length;
+  const currentRootAdminListed = members.some(
+    (item) => item.id === currentUserEmail && item.active && item.adminAccess,
+  );
+  const effectiveAdminCount =
+    adminMembers + (hasRootAdminClaim && !currentRootAdminListed ? 1 : 0);
+  const invalidEventDeadlineCount = events.filter(
+    (item) =>
+      item.published &&
+      item.registrationOpen &&
+      !timestampDate(item.registrationDeadlineAt),
+  ).length;
+  const missingProductAltCount = products.filter(
+    (item) => item.published && item.imageUrl.trim() && !item.imageAlt.trim(),
+  ).length;
+  const readinessChecks = buildLaunchReadiness({
+    firebaseConfigured: configured,
+    appCheckConfigured,
+    privacyReady: Boolean(
+      privacy.published &&
+      privacy.operator.trim() &&
+      privacy.contact.trim() &&
+      privacy.retention.trim() &&
+      privacy.body.trim(),
+    ),
+    contactEmailReady: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overview.email.trim()),
+    administratorCount: effectiveAdminCount,
+    intranetMemberCount: intranetMembers,
+    publicContentCount: publicContent,
+    invalidEventDeadlineCount,
+    missingProductAltCount,
+    secureCustomDomain:
+      window.location.hostname === "geekbyte.kro.kr" &&
+      window.location.protocol === "https:",
+  });
+  const readinessReadyCount = readinessChecks.filter(
+    (check) => check.ready,
+  ).length;
   const dashboardStats: Array<{
     label: string;
     value: number;
@@ -3222,6 +3260,55 @@ function AdminPanel(props: AdminProps) {
                 </button>
               ))}
             </div>
+            <section className="admin-readiness">
+              <div className="admin-readiness-heading">
+                <div>
+                  <span>LAUNCH READINESS</span>
+                  <h3>출시 준비 점검</h3>
+                  <p>
+                    운영에 필요한 설정과 콘텐츠 상태를 현재 데이터 기준으로
+                    확인합니다.
+                  </p>
+                </div>
+                <div className="admin-readiness-score">
+                  <strong>
+                    {readinessReadyCount}/{readinessChecks.length}
+                  </strong>
+                  <span>준비 완료</span>
+                </div>
+              </div>
+              <progress
+                className="admin-readiness-progress"
+                max={readinessChecks.length}
+                value={readinessReadyCount}
+                aria-label={`출시 준비 ${readinessChecks.length}개 중 ${readinessReadyCount}개 완료`}
+              />
+              <div className="admin-readiness-grid">
+                {readinessChecks.map((check) => (
+                  <article
+                    className={`admin-readiness-item ${check.ready ? "ready" : "pending"}`}
+                    key={check.id}
+                  >
+                    <span className="admin-readiness-icon" aria-hidden="true">
+                      {check.ready ? (
+                        <Check size={17} />
+                      ) : (
+                        <CircleHelp size={17} />
+                      )}
+                    </span>
+                    <div>
+                      <h4>{check.label}</h4>
+                      <p>{check.detail}</p>
+                    </div>
+                    {!check.ready && check.target && (
+                      <button onClick={() => changeTab(check.target!)}>
+                        설정 열기 <ArrowRight size={13} />
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
             <div className="admin-dashboard-panels">
               <section>
                 <div className="admin-dashboard-panel-heading">

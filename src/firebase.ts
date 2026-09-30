@@ -12,17 +12,18 @@ const config = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+const appCheckSiteKey = import.meta.env
+  .VITE_FIREBASE_RECAPTCHA_ENTERPRISE_SITE_KEY;
 
 export const configured = Object.values(config).every(Boolean);
+export const appCheckConfigured = Boolean(configured && appCheckSiteKey);
 export const app: FirebaseApp | null = configured
   ? initializeApp(config)
   : null;
 
-if (app && import.meta.env.VITE_FIREBASE_RECAPTCHA_ENTERPRISE_SITE_KEY) {
+if (app && appCheckSiteKey) {
   initializeAppCheck(app, {
-    provider: new ReCaptchaEnterpriseProvider(
-      import.meta.env.VITE_FIREBASE_RECAPTCHA_ENTERPRISE_SITE_KEY,
-    ),
+    provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
     isTokenAutoRefreshEnabled: true,
   });
 }

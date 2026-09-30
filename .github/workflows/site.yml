@@ -34,7 +34,7 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_FIREBASE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
       - run: npm audit --audit-level=high
-      - run: npm run test:backup
+      - run: npm run test:unit
       - run: npm run test:rules:emulator
 
   build-pages:
