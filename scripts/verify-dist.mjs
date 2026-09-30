@@ -31,6 +31,9 @@ for (const marker of [
   'property="og:title"',
   'name="twitter:card"',
   'type="application/ld+json"',
+  'name="referrer" content="strict-origin-when-cross-origin"',
+  'http-equiv="Content-Security-Policy"',
+  "object-src 'none'",
 ]) {
   if (!html.includes(marker)) throw new Error(`Missing HTML marker: ${marker}`);
 }
