@@ -180,6 +180,29 @@ type AdminTab =
   | "auditLogs"
   | "dmAudit"
   | CollectionName;
+const adminNavigationGroups: {
+  label: string;
+  items: AdminTab[];
+}[] = [
+  { label: "운영", items: ["dashboard", "applications"] },
+  {
+    label: "공개 사이트",
+    items: ["overview", "privacy", "history", "notices", "products", "events"],
+  },
+  {
+    label: "인트라넷",
+    items: [
+      "intranetNotices",
+      "intranetResources",
+      "intranetProjects",
+      "intranetMeetings",
+      "intranetProfiles",
+      "intranetEvents",
+      "chatChannels",
+    ],
+  },
+  { label: "권한·감사", items: ["members", "auditLogs", "dmAudit"] },
+];
 const initialForm = {
   name: "",
   email: "",
@@ -3790,14 +3813,20 @@ function AdminPanel(props: AdminProps) {
           <small>ADMIN STUDIO</small>
         </div>
         <nav>
-          {(Object.keys(labels) as AdminTab[]).map((key) => (
-            <button
-              className={tab === key ? "selected" : ""}
-              key={key}
-              onClick={() => changeTab(key)}
-            >
-              {labels[key]} <ArrowRight size={15} />
-            </button>
+          {adminNavigationGroups.map((group) => (
+            <section className="admin-nav-group" key={group.label}>
+              <p>{group.label}</p>
+              {group.items.map((key) => (
+                <button
+                  aria-current={tab === key ? "page" : undefined}
+                  className={tab === key ? "selected" : ""}
+                  key={key}
+                  onClick={() => changeTab(key)}
+                >
+                  {labels[key]} <ArrowRight size={15} />
+                </button>
+              ))}
+            </section>
           ))}
         </nav>
         <button className="admin-exit" onClick={onClose}>

@@ -1685,8 +1685,25 @@ select:focus-visible {
 }
 .admin-sidebar nav {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 3px;
+  scrollbar-width: thin;
+}
+.admin-nav-group {
+  display: grid;
   gap: 4px;
+}
+.admin-nav-group > p {
+  margin: 0;
+  padding: 0 12px 5px;
+  color: #626c80;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
 }
 .admin-sidebar nav button {
   width: 100%;
@@ -3865,9 +3882,17 @@ button.admin-dashboard-row:hover {
     margin-left: 12px;
   }
   .admin-sidebar nav {
+    flex: none;
     flex-direction: row;
     overflow: auto;
     gap: 4px;
+    padding-right: 0;
+  }
+  .admin-nav-group {
+    display: contents;
+  }
+  .admin-nav-group > p {
+    display: none;
   }
   .admin-sidebar nav button {
     width: auto;
