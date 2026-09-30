@@ -50,7 +50,9 @@ import {
   X,
 } from "lucide-react";
 import { appCheckConfigured, auth, configured, db } from "./firebase";
+import { AdminDirectMessages } from "./AdminDirectMessages";
 import { IntranetChat } from "./IntranetChat";
+import { IntranetDirectMessages } from "./IntranetDirectMessages";
 import { IntranetEvents } from "./IntranetEvents";
 import { buildLaunchReadiness } from "./readiness";
 import {
@@ -102,6 +104,7 @@ type AdminTab =
   | "privacy"
   | "members"
   | "auditLogs"
+  | "dmAudit"
   | CollectionName;
 const initialForm = {
   name: "",
@@ -181,6 +184,7 @@ const auditActionLabels: Record<string, string> = {
   "role.active": "계정 상태 변경",
   "role.delete": "계정 역할 삭제",
   "backup.restore": "콘텐츠 백업 복원",
+  "dm.view": "개인 대화 열람",
 };
 function registrationAvailable(event: Event) {
   const deadline = timestampDate(event.registrationDeadlineAt);
@@ -1949,6 +1953,7 @@ function App() {
                         setActiveAdmin(true);
                       }}
                     />
+                    <IntranetDirectMessages user={user} />
                     <section className="intranet-panel intranet-directory-panel">
                       <div className="intranet-panel-heading">
                         <span>TEAM DIRECTORY</span>
@@ -2529,6 +2534,7 @@ function App() {
           applications={applications}
           members={members}
           auditLogs={auditLogs}
+          currentUser={user!}
           currentUserEmail={user?.email?.toLocaleLowerCase("en-US") || ""}
           hasRootAdminClaim={hasAdminClaim}
           tab={adminTab}
@@ -2570,6 +2576,7 @@ type AdminProps = {
   applications: Application[];
   members: Member[];
   auditLogs: AdminAuditLog[];
+  currentUser: User;
   currentUserEmail: string;
   hasRootAdminClaim: boolean;
   tab: AdminTab;
@@ -2623,6 +2630,7 @@ function AdminPanel(props: AdminProps) {
     applications,
     members,
     auditLogs,
+    currentUser,
     currentUserEmail,
     hasRootAdminClaim,
     tab,
@@ -2712,6 +2720,7 @@ function AdminPanel(props: AdminProps) {
     applications: "행사 신청",
     members: "구성원 권한",
     auditLogs: "활동 기록",
+    dmAudit: "개인 대화 감사",
   };
   const filteredApplications = useMemo(() => {
     const term = applicationQuery.trim().toLocaleLowerCase("ko-KR");
@@ -2797,6 +2806,8 @@ function AdminPanel(props: AdminProps) {
     contactEmailReady: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overview.email.trim()),
     administratorCount: effectiveAdminCount,
     intranetMemberCount: intranetMembers,
+    publishedChatChannelCount: chatChannels.filter((item) => item.published)
+      .length,
     publicContentCount: publicContent,
     invalidEventDeadlineCount,
     missingProductAltCount,
@@ -3915,6 +3926,8 @@ function AdminPanel(props: AdminProps) {
               <p className="admin-empty">아직 기록된 관리자 작업이 없습니다.</p>
             )}
           </div>
+        ) : tab === "dmAudit" ? (
+          <AdminDirectMessages user={currentUser} />
         ) : tab === "applications" ? (
           <div className="admin-list">
             <p className="admin-help">

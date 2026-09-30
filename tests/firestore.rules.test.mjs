@@ -17,6 +17,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 
 let environment;
@@ -101,6 +102,40 @@ before(async () => {
       kind: "chat",
       published: false,
     });
+    await setDoc(doc(store, "memberIdentities", "member-a"), {
+      uid: "member-a",
+      displayName: "Member A",
+      updatedAt: Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")),
+    });
+    await setDoc(doc(store, "memberIdentities", "member-b"), {
+      uid: "member-b",
+      displayName: "Member B",
+      updatedAt: Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")),
+    });
+    await setDoc(doc(store, "memberIdentities", "member-d"), {
+      uid: "member-d",
+      displayName: "Member D",
+      updatedAt: Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")),
+    });
+    await setDoc(doc(store, "directConversations", "member-a--member-b"), {
+      participants: ["member-a", "member-b"],
+      createdAt: Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")),
+    });
+    await setDoc(
+      doc(
+        store,
+        "directConversations",
+        "member-a--member-b",
+        "messages",
+        "seed-message",
+      ),
+      {
+        authorUid: "member-a",
+        authorName: "Member A",
+        text: "Private hello",
+        createdAt: Timestamp.fromDate(new Date("2026-01-01T00:00:00Z")),
+      },
+    );
     await setDoc(doc(store, "members", "listed@example.com"), {
       email: "listed@example.com",
       displayName: "Listed Member",
@@ -371,6 +406,138 @@ test("published chat channels support secure member group messaging", async () =
         createdAt: serverTimestamp(),
       },
     ),
+  );
+});
+
+test("members can create identities and access only their direct conversations", async () => {
+  const memberA = environment
+    .authenticatedContext("member-a", {
+      member: true,
+      name: "Member A",
+      email: "a@example.com",
+    })
+    .firestore();
+  await assertSucceeds(
+    setDoc(doc(memberA, "memberIdentities", "member-a"), {
+      uid: "member-a",
+      displayName: "Member A",
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    setDoc(doc(memberA, "memberIdentities", "member-a"), {
+      uid: "member-a",
+      displayName: "Impersonated Name",
+      updatedAt: serverTimestamp(),
+    }),
+  );
+  await assertSucceeds(
+    getDoc(doc(memberA, "directConversations", "member-a--member-b")),
+  );
+  await assertSucceeds(
+    setDoc(doc(memberA, "directConversations", "member-a--member-d"), {
+      participants: ["member-a", "member-d"],
+      createdAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    setDoc(doc(memberA, "directConversations", "member-a--missing"), {
+      participants: ["member-a", "missing"],
+      createdAt: serverTimestamp(),
+    }),
+  );
+  const ownMessage = doc(
+    memberA,
+    "directConversations",
+    "member-a--member-b",
+    "messages",
+    "member-a-message",
+  );
+  await assertSucceeds(
+    setDoc(ownMessage, {
+      authorUid: "member-a",
+      authorName: "Member A",
+      text: "Secure direct message",
+      createdAt: serverTimestamp(),
+    }),
+  );
+  const outsider = environment
+    .authenticatedContext("member-c", {
+      member: true,
+      name: "Member C",
+    })
+    .firestore();
+  await assertFails(
+    getDoc(doc(outsider, "directConversations", "member-a--member-b")),
+  );
+  await assertFails(
+    getDoc(
+      doc(
+        outsider,
+        "directConversations",
+        "member-a--member-b",
+        "messages",
+        "seed-message",
+      ),
+    ),
+  );
+  await assertSucceeds(deleteDoc(ownMessage));
+});
+
+test("administrators must append an audit log before reading direct messages", async () => {
+  const admin = environment
+    .authenticatedContext("dm-admin", {
+      admin: true,
+      email: "dm-admin@example.com",
+      name: "DM Admin",
+    })
+    .firestore();
+  const message = doc(
+    admin,
+    "directConversations",
+    "member-a--member-b",
+    "messages",
+    "seed-message",
+  );
+  await assertSucceeds(
+    getDoc(doc(admin, "directConversations", "member-a--member-b")),
+  );
+  await assertFails(getDoc(message));
+  await assertFails(
+    setDoc(doc(admin, "directMessageAccess", "dm-admin_member-a--member-b"), {
+      actorUid: "dm-admin",
+      conversationId: "member-a--member-b",
+      auditId: "missing-audit",
+      createdAt: serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 5 * 60 * 1000),
+    }),
+  );
+  const batch = writeBatch(admin);
+  batch.set(doc(admin, "adminAuditLogs", "dm-view-audit"), {
+    action: "dm.view",
+    target: "directConversations/member-a--member-b",
+    details: "개인 대화 열람: Member A ↔ Member B",
+    actor: "dm-admin@example.com",
+    createdAt: serverTimestamp(),
+  });
+  batch.set(doc(admin, "directMessageAccess", "dm-admin_member-a--member-b"), {
+    actorUid: "dm-admin",
+    conversationId: "member-a--member-b",
+    auditId: "dm-view-audit",
+    createdAt: serverTimestamp(),
+    expiresAt: Timestamp.fromMillis(Date.now() + 5 * 60 * 1000),
+  });
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(getDoc(message));
+  await assertSucceeds(getDoc(doc(admin, "adminAuditLogs", "dm-view-audit")));
+  await assertFails(
+    setDoc(doc(admin, "directMessageAccess", "dm-admin_member-a--member-b"), {
+      actorUid: "dm-admin",
+      conversationId: "member-a--member-b",
+      auditId: "dm-view-audit",
+      createdAt: serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 5 * 60 * 1000),
+    }),
   );
 });
 

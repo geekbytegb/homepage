@@ -10,6 +10,7 @@ function input(overrides = {}) {
     contactEmailReady: false,
     administratorCount: 0,
     intranetMemberCount: 0,
+    publishedChatChannelCount: 0,
     publicContentCount: 0,
     invalidEventDeadlineCount: 0,
     missingProductAltCount: 0,
@@ -20,7 +21,7 @@ function input(overrides = {}) {
 
 test("launch readiness reports every required operating area", () => {
   const checks = buildLaunchReadiness(input());
-  assert.equal(checks.length, 10);
+  assert.equal(checks.length, 11);
   assert.deepEqual(
     checks.map((check) => check.id),
     [
@@ -29,6 +30,7 @@ test("launch readiness reports every required operating area", () => {
       "contact",
       "administrator",
       "intranet-member",
+      "intranet-chat",
       "public-content",
       "event-deadline",
       "product-alt",
@@ -47,6 +49,7 @@ test("fully configured site passes every readiness check", () => {
       contactEmailReady: true,
       administratorCount: 2,
       intranetMemberCount: 4,
+      publishedChatChannelCount: 2,
       publicContentCount: 8,
       secureCustomDomain: true,
     }),

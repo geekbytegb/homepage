@@ -1,5 +1,11 @@
 export type ReadinessTarget =
-  "overview" | "privacy" | "members" | "notices" | "events" | "products";
+  | "overview"
+  | "privacy"
+  | "members"
+  | "notices"
+  | "events"
+  | "products"
+  | "chatChannels";
 
 export type LaunchReadinessInput = {
   firebaseConfigured: boolean;
@@ -8,6 +14,7 @@ export type LaunchReadinessInput = {
   contactEmailReady: boolean;
   administratorCount: number;
   intranetMemberCount: number;
+  publishedChatChannelCount: number;
   publicContentCount: number;
   invalidEventDeadlineCount: number;
   missingProductAltCount: number;
@@ -71,6 +78,16 @@ export function buildLaunchReadiness(
           : "인트라넷 사용을 위해 내부자 역할 등록 필요",
       ready: input.intranetMemberCount > 0,
       target: "members",
+    },
+    {
+      id: "intranet-chat",
+      label: "팀 메신저 채널",
+      detail:
+        input.publishedChatChannelCount > 0
+          ? `게시된 채널 ${input.publishedChatChannelCount}개 확인됨`
+          : "인트라넷에서 사용할 대화 또는 공지 채널 게시 필요",
+      ready: input.publishedChatChannelCount > 0,
+      target: "chatChannels",
     },
     {
       id: "public-content",

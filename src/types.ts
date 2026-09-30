@@ -91,6 +91,24 @@ export type ChatChannel = Entry & {
   kind: "chat" | "announcement";
   order?: number;
 };
+export type MemberIdentity = {
+  id: string;
+  uid: string;
+  displayName: string;
+  updatedAt?: { toDate: () => Date };
+};
+export type DirectConversation = {
+  id: string;
+  participants: string[];
+  createdAt?: { toDate: () => Date };
+};
+export type DirectMessage = {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  text: string;
+  createdAt?: { toDate: () => Date };
+};
 export type Product = Entry & {
   name: string;
   category: string;
