@@ -2696,20 +2696,41 @@ button.admin-dashboard-row:hover {
   padding: 0;
   overflow: hidden;
 }
-.messenger-panel-heading {
-  min-height: 62px;
-  padding: 0 24px;
-  border-bottom: 1px solid #303747;
-}
-.messenger-panel-heading > span {
+.messenger-toolbar {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  width: 100%;
+  min-height: 70px;
+  gap: 24px;
+  padding: 0 20px;
+  border-bottom: 1px solid #303747;
+  background: #11141b;
 }
-.messenger-panel-heading > button {
+.messenger-title {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+  color: #dfe4f4;
+}
+.messenger-title > span {
+  display: grid;
+  gap: 2px;
+}
+.messenger-title strong {
+  font-size: 12px;
+}
+.messenger-title small {
+  color: #697286;
+  font-size: 9px;
+  font-weight: 500;
+}
+.messenger-toolbar > button {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  flex: 0 0 auto;
+  margin-left: auto;
   padding: 7px 10px;
   border: 1px solid #384157;
   background: transparent;
@@ -2720,16 +2741,15 @@ button.admin-dashboard-row:hover {
 }
 .messenger-tabs {
   display: flex;
+  align-self: stretch;
   gap: 4px;
-  padding: 10px 14px 0;
-  border-bottom: 1px solid #303747;
-  background: #11141b;
+  padding: 0;
 }
 .messenger-tabs button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 11px 15px;
+  padding: 0 15px;
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
@@ -2771,12 +2791,9 @@ button.admin-dashboard-row:hover {
 .intranet-chat-panel.embedded .chat-shell {
   min-height: 590px;
 }
-.intranet-dm-panel.embedded .dm-privacy-notice {
-  margin: 14px 16px 0;
-}
 .intranet-dm-panel.embedded .dm-shell {
-  min-height: 520px;
-  margin: 14px 0 0;
+  min-height: 590px;
+  margin: 0;
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
@@ -3106,25 +3123,6 @@ button.admin-dashboard-row:hover {
 .intranet-dm-panel {
   grid-column: 1 / -1;
 }
-.dm-privacy-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 17px;
-  padding: 13px 15px;
-  border: 1px solid rgba(122, 139, 235, 0.35);
-  background: rgba(77, 91, 165, 0.13);
-  color: #b6c0f4;
-}
-.dm-privacy-notice svg {
-  flex: 0 0 auto;
-  margin-top: 2px;
-}
-.dm-privacy-notice p {
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.65;
-}
 .dm-shell {
   display: grid;
   grid-template-columns: 245px minmax(0, 1fr);
@@ -3235,6 +3233,38 @@ button.admin-dashboard-row:hover {
   margin-left: 0;
   color: #747d90;
   font-size: 9px;
+}
+.dm-privacy-details {
+  position: relative;
+  margin-left: 4px;
+  color: #8994cc;
+  font-size: 9px;
+}
+.dm-privacy-details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+}
+.dm-privacy-details summary::-webkit-details-marker {
+  display: none;
+}
+.dm-privacy-details p {
+  position: absolute;
+  z-index: 4;
+  top: 25px;
+  left: 0;
+  width: min(330px, 75vw);
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #3a456c;
+  border-radius: 8px;
+  background: #111621;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.35);
+  color: #b6c0e8;
+  font-size: 10px;
+  line-height: 1.65;
 }
 .dm-messages {
   min-height: 0;
@@ -3677,6 +3707,29 @@ button.admin-dashboard-row:hover {
   }
   .intranet-panel {
     padding: 20px;
+  }
+  .messenger-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0 12px;
+    padding: 12px 14px 0;
+  }
+  .messenger-title {
+    min-width: 0;
+  }
+  .messenger-toolbar > button {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .messenger-tabs {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    min-height: 50px;
+    margin-top: 8px;
+  }
+  .messenger-tabs button {
+    flex: 1;
+    justify-content: center;
   }
   .intranet-project-list,
   .intranet-meeting-list,

@@ -260,14 +260,6 @@ export function IntranetDirectMessages({
         <span>DIRECT MESSAGES</span>
         <strong>{conversations.length}</strong>
       </div>
-      <div className="dm-privacy-notice">
-        <LockKeyhole size={15} />
-        <p>
-          팀 운영과 안전을 위해 관리자가 개인 대화를 열람할 수 있습니다.
-          관리자가 대화 내용을 열 때마다 담당자·대상·시각이 변경 불가 활동
-          기록에 남습니다.
-        </p>
-      </div>
       <div className="dm-shell">
         <aside className="dm-contact-list" aria-label="개인 대화 상대">
           <strong>구성원</strong>
@@ -328,6 +320,16 @@ export function IntranetDirectMessages({
               <header className="dm-header">
                 <UserRound size={17} />
                 <strong>{selectedName}</strong>
+                <details className="dm-privacy-details">
+                  <summary>
+                    <LockKeyhole size={13} /> 열람 안내
+                  </summary>
+                  <p>
+                    팀 운영과 안전을 위해 관리자가 개인 대화를 열람할 수
+                    있습니다. 열람할 때마다 담당자·대상·시각이 변경 불가 활동
+                    기록에 남습니다.
+                  </p>
+                </details>
                 <label className="messenger-search">
                   <Search size={13} />
                   <input

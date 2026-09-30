@@ -205,8 +205,8 @@ export function IntranetChat({
       <div className="chat-shell">
         <aside className="chat-channel-rail" aria-label="메신저 채널">
           <div className="chat-rail-title">
-            <MessageCircle size={17} />
-            <span>GEEK BYTE</span>
+            <MessageCircle size={16} />
+            <span>채널</span>
           </div>
           {channels.length ? (
             channels.map((channel) => {
