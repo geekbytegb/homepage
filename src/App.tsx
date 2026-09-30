@@ -314,6 +314,29 @@ function applicationAnswersText(raw?: string) {
     )
     .join(" / ");
 }
+function ApplicationAnswers({ raw }: { raw?: string }) {
+  const answers = parseApplicationAnswers(raw);
+  if (!answers.length) return null;
+  return (
+    <div className="application-custom-answers">
+      <strong>추가 질문 답변</strong>
+      <dl>
+        {answers.map((answer) => (
+          <div key={answer.id}>
+            <dt>{answer.label}</dt>
+            <dd>
+              {typeof answer.value === "boolean"
+                ? answer.value
+                  ? "예"
+                  : "아니요"
+                : answer.value || "미응답"}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
 const emptyEditors: Record<
   Exclude<CollectionName, "applications">,
   Record<string, unknown>
@@ -3028,6 +3051,10 @@ function AdminPanel(props: AdminProps) {
   const [applicationStatus, setApplicationStatus] = useState<
     "all" | Application["status"]
   >("all");
+  const [applicationEvent, setApplicationEvent] = useState("all");
+  const [applicationAttention, setApplicationAttention] = useState<
+    "all" | "action_required" | "retention_expired"
+  >("all");
   const [auditQuery, setAuditQuery] = useState("");
   const [auditAction, setAuditAction] = useState("all");
   const [memberEmail, setMemberEmail] = useState("");
@@ -3076,6 +3103,15 @@ function AdminPanel(props: AdminProps) {
     auditLogs: "활동 기록",
     dmAudit: "개인 대화 감사",
   };
+  const applicationEventOptions = useMemo(() => {
+    const titles = new Map(events.map((event) => [event.id, event.title]));
+    applications.forEach((application) => {
+      if (!titles.has(application.eventId)) {
+        titles.set(application.eventId, `삭제된 행사 · ${application.eventId}`);
+      }
+    });
+    return [...titles].sort(([, a], [, b]) => a.localeCompare(b, "ko-KR"));
+  }, [applications, events]);
   const filteredApplications = useMemo(() => {
     const term = applicationQuery.trim().toLocaleLowerCase("ko-KR");
     return [...applications]
@@ -3083,14 +3119,38 @@ function AdminPanel(props: AdminProps) {
         (item) =>
           applicationStatus === "all" || item.status === applicationStatus,
       )
+      .filter(
+        (item) =>
+          applicationEvent === "all" || item.eventId === applicationEvent,
+      )
+      .filter((item) => {
+        if (applicationAttention === "all") return true;
+        if (applicationAttention === "action_required") {
+          return (
+            item.status === "new" ||
+            item.status === "reviewing" ||
+            item.status === "deletion_requested"
+          );
+        }
+        const deadline = applicationRetentionDeadline(
+          item,
+          privacy.retentionDays,
+        );
+        return Boolean(deadline && deadline.getTime() <= Date.now());
+      })
       .filter((item) => {
         if (!term) return true;
         const eventTitle =
           events.find((event) => event.id === item.eventId)?.title ||
           item.eventId;
-        return [item.name, item.email, item.phone, eventTitle].some((value) =>
-          value.toLocaleLowerCase("ko-KR").includes(term),
-        );
+        return [
+          item.name,
+          item.email,
+          item.phone,
+          eventTitle,
+          item.motivation,
+          applicationAnswersText(item.answers),
+        ].some((value) => value.toLocaleLowerCase("ko-KR").includes(term));
       })
       .sort(
         (a, b) =>
@@ -3099,7 +3159,15 @@ function AdminPanel(props: AdminProps) {
           (timestampDate(b.createdAt)?.getTime() || 0) -
             (timestampDate(a.createdAt)?.getTime() || 0),
       );
-  }, [applicationQuery, applicationStatus, applications, events]);
+  }, [
+    applicationAttention,
+    applicationEvent,
+    applicationQuery,
+    applicationStatus,
+    applications,
+    events,
+    privacy.retentionDays,
+  ]);
   const auditActions = useMemo(
     () => [...new Set(auditLogs.map((log) => log.action))].sort(),
     [auditLogs],
@@ -4383,6 +4451,53 @@ function AdminPanel(props: AdminProps) {
                   <option value="deletion_requested">개인정보 삭제 요청</option>
                 </select>
               </label>
+              <label>
+                <span>행사</span>
+                <select
+                  value={applicationEvent}
+                  onChange={(event) => setApplicationEvent(event.target.value)}
+                >
+                  <option value="all">전체 행사</option>
+                  {applicationEventOptions.map(([eventId, eventTitle]) => (
+                    <option key={eventId} value={eventId}>
+                      {eventTitle}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>관리 필요</span>
+                <select
+                  value={applicationAttention}
+                  onChange={(event) =>
+                    setApplicationAttention(
+                      event.target.value as
+                        "all" | "action_required" | "retention_expired",
+                    )
+                  }
+                >
+                  <option value="all">전체 신청</option>
+                  <option value="action_required">처리 필요</option>
+                  <option value="retention_expired">파기 점검일 경과</option>
+                </select>
+              </label>
+              {(applicationQuery ||
+                applicationStatus !== "all" ||
+                applicationEvent !== "all" ||
+                applicationAttention !== "all") && (
+                <button
+                  className="button button-ghost"
+                  onClick={() => {
+                    setApplicationQuery("");
+                    setApplicationStatus("all");
+                    setApplicationEvent("all");
+                    setApplicationAttention("all");
+                  }}
+                  type="button"
+                >
+                  조건 초기화
+                </button>
+              )}
               <button
                 className="button button-ghost"
                 disabled={!filteredApplications.length}
@@ -4429,12 +4544,7 @@ function AdminPanel(props: AdminProps) {
                       </p>
                       <p>연락처: {item.phone}</p>
                       <p>신청 동기: {item.motivation || "없음"}</p>
-                      {item.answers && (
-                        <p className="application-custom-answers">
-                          추가 답변:{" "}
-                          {applicationAnswersText(item.answers) || "없음"}
-                        </p>
-                      )}
+                      <ApplicationAnswers raw={item.answers} />
                       <p>
                         접수:{" "}
                         {timestampDate(item.createdAt)?.toLocaleString(

@@ -1476,6 +1476,38 @@ select:focus-visible {
   margin: 0;
 }
 .application-custom-answers {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #343d52;
+  background: #151a24;
+}
+.application-custom-answers > strong {
+  display: block;
+  margin-bottom: 10px;
+  color: #aebaff;
+  font-size: 11px;
+}
+.application-custom-answers dl {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.application-custom-answers dl > div {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.45fr) minmax(0, 1fr);
+  gap: 14px;
+}
+.application-custom-answers dt {
+  color: #7f899c;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.application-custom-answers dd {
+  margin: 0;
+  color: #e3e7f2;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 .event-question-builder {
@@ -1522,7 +1554,7 @@ select:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 130px;
   gap: 12px;
-  padding: 16px 42px 16px 16px;
+  padding: 54px 16px 16px;
   border: 1px solid #323a4e;
   background: #1b202c;
 }
@@ -1554,16 +1586,26 @@ select:focus-visible {
   width: 15px;
   height: 15px;
 }
-.event-question-delete {
+.event-question-actions {
   position: absolute;
-  top: 12px;
+  top: 10px;
   right: 12px;
+  display: flex;
+  gap: 3px;
+}
+.event-question-actions button {
   display: grid;
   width: 26px;
   height: 26px;
   place-items: center;
   border: 0;
   background: transparent;
+  color: #9aa9e9;
+}
+.event-question-actions button:disabled {
+  opacity: 0.28;
+}
+.event-question-actions .event-question-delete {
   color: #dd898e;
 }
 .form-message {
@@ -2277,8 +2319,8 @@ button.admin-dashboard-row:hover {
   color: #ff9b9b;
 }
 .application-toolbar {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) 180px auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: end;
   gap: 12px;
   padding: 16px;
@@ -2292,6 +2334,10 @@ button.admin-dashboard-row:hover {
   color: #aeb5c4;
   font-size: 11px;
   font-weight: 600;
+  flex: 1 1 160px;
+}
+.application-toolbar label:first-child {
+  flex: 2 1 260px;
 }
 .application-toolbar input,
 .application-toolbar select {

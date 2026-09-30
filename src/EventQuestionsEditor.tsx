@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import {
   serializeEventQuestions,
   type EventQuestion,
@@ -54,6 +54,14 @@ export function EventQuestionsEditor({
         options: [],
       },
     ]);
+  }
+
+  function move(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= questions.length) return;
+    const next = [...questions];
+    [next[index], next[target]] = [next[target], next[index]];
+    commit(next);
   }
 
   return (
@@ -132,18 +140,38 @@ export function EventQuestionsEditor({
             />
             필수 답변
           </label>
-          <button
-            aria-label={`${index + 1}번째 질문 삭제`}
-            className="event-question-delete"
-            onClick={() =>
-              commit(
-                questions.filter((_, questionIndex) => questionIndex !== index),
-              )
-            }
-            type="button"
-          >
-            <Trash2 size={15} />
-          </button>
+          <div className="event-question-actions">
+            <button
+              aria-label={`${index + 1}번째 질문을 위로 이동`}
+              disabled={index === 0}
+              onClick={() => move(index, -1)}
+              type="button"
+            >
+              <ArrowUp size={14} />
+            </button>
+            <button
+              aria-label={`${index + 1}번째 질문을 아래로 이동`}
+              disabled={index === questions.length - 1}
+              onClick={() => move(index, 1)}
+              type="button"
+            >
+              <ArrowDown size={14} />
+            </button>
+            <button
+              aria-label={`${index + 1}번째 질문 삭제`}
+              className="event-question-delete"
+              onClick={() =>
+                commit(
+                  questions.filter(
+                    (_, questionIndex) => questionIndex !== index,
+                  ),
+                )
+              }
+              type="button"
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
         </article>
       ))}
       {!questions.length && !parseError && (
