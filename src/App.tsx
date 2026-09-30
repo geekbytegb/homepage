@@ -72,7 +72,12 @@ type CollectionName =
   | "intranetMeetings"
   | "applications";
 type AdminTab =
-  "overview" | "privacy" | "members" | "auditLogs" | CollectionName;
+  | "dashboard"
+  | "overview"
+  | "privacy"
+  | "members"
+  | "auditLogs"
+  | CollectionName;
 const initialForm = {
   name: "",
   email: "",
@@ -271,7 +276,7 @@ function App() {
   const [privacy, setPrivacy] = useState<Privacy>(defaultPrivacy);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [activeAdmin, setActiveAdmin] = useState(false);
-  const [adminTab, setAdminTab] = useState<AdminTab>("overview");
+  const [adminTab, setAdminTab] = useState<AdminTab>("dashboard");
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -2171,6 +2176,7 @@ function AdminPanel(props: AdminProps) {
     intranetMeetings,
   };
   const labels: Record<AdminTab, string> = {
+    dashboard: "운영 요약",
     overview: "사이트 소개",
     privacy: "개인정보 안내",
     history: "연혁",
@@ -2219,6 +2225,69 @@ function AdminPanel(props: AdminProps) {
           (a.createdAt?.toDate()?.getTime() || 0),
       );
   }, [applicationQuery, applicationStatus, applications, events]);
+  const pendingApplications = applications.filter(
+    (item) => item.status === "new" || item.status === "reviewing",
+  ).length;
+  const openEvents = events.filter(
+    (item) => item.published && item.registrationOpen,
+  ).length;
+  const publicContent = [history, notices, products, events]
+    .flat()
+    .filter((item) => item.published).length;
+  const activeProjects = intranetProjects.filter(
+    (item) => item.published && item.status === "active",
+  ).length;
+  const adminMembers = members.filter(
+    (item) => item.active && item.adminAccess,
+  ).length;
+  const intranetMembers = members.filter(
+    (item) => item.active && item.memberAccess,
+  ).length;
+  const dashboardStats: Array<{
+    label: string;
+    value: number;
+    detail: string;
+    target: AdminTab;
+    urgent?: boolean;
+  }> = [
+    {
+      label: "처리 대기 신청",
+      value: pendingApplications,
+      detail: `전체 신청 ${applications.length}건`,
+      target: "applications",
+      urgent: pendingApplications > 0,
+    },
+    {
+      label: "모집 중 행사",
+      value: openEvents,
+      detail: `등록 행사 ${events.length}개`,
+      target: "events",
+    },
+    {
+      label: "공개 콘텐츠",
+      value: publicContent,
+      detail: "연혁·공지·제품·행사",
+      target: "notices",
+    },
+    {
+      label: "진행 중 프로젝트",
+      value: activeProjects,
+      detail: `내부 프로젝트 ${intranetProjects.length}개`,
+      target: "intranetProjects",
+    },
+    {
+      label: "관리자",
+      value: adminMembers,
+      detail: "사이트 운영 권한",
+      target: "members",
+    },
+    {
+      label: "내부자",
+      value: intranetMembers,
+      detail: "인트라넷 접근 권한",
+      target: "members",
+    },
+  ];
 
   function changeTab(next: AdminTab) {
     setTab(next);
@@ -2396,7 +2465,7 @@ function AdminPanel(props: AdminProps) {
       "접수 일시",
     ];
     const rows = filteredApplications.map((item) => [
-      item.status,
+      applicationStatusLabels[item.status],
       item.name,
       item.email,
       item.phone,
@@ -2485,7 +2554,115 @@ function AdminPanel(props: AdminProps) {
             {message}
           </p>
         )}
-        {tab === "overview" ? (
+        {tab === "dashboard" ? (
+          <div className="admin-dashboard">
+            <div className="admin-dashboard-intro">
+              <div>
+                <span>OPERATIONS AT A GLANCE</span>
+                <h2>지금 확인할 운영 현황</h2>
+                <p>
+                  공개 사이트, 행사 신청, 인트라넷과 계정 권한의 현재 상태를
+                  한곳에서 확인합니다.
+                </p>
+              </div>
+              <button
+                className="button button-primary"
+                onClick={() => changeTab("auditLogs")}
+              >
+                최근 활동 보기 <ArrowRight size={17} />
+              </button>
+            </div>
+            <div className="admin-stat-grid">
+              {dashboardStats.map((stat) => (
+                <button
+                  className={`admin-stat-card ${stat.urgent ? "urgent" : ""}`}
+                  key={stat.label}
+                  onClick={() => changeTab(stat.target)}
+                >
+                  <span>{stat.label}</span>
+                  <strong>{stat.value}</strong>
+                  <small>{stat.detail}</small>
+                  <ArrowUpRight size={18} aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <div className="admin-dashboard-panels">
+              <section>
+                <div className="admin-dashboard-panel-heading">
+                  <div>
+                    <span>APPLICATIONS</span>
+                    <h3>최근 신청</h3>
+                  </div>
+                  <button onClick={() => changeTab("applications")}>
+                    전체 보기 <ArrowRight size={14} />
+                  </button>
+                </div>
+                {applications.length ? (
+                  [...applications]
+                    .sort(
+                      (a, b) =>
+                        (b.createdAt?.toDate()?.getTime() || 0) -
+                        (a.createdAt?.toDate()?.getTime() || 0),
+                    )
+                    .slice(0, 5)
+                    .map((item) => (
+                      <button
+                        className="admin-dashboard-row"
+                        key={item.id}
+                        onClick={() => changeTab("applications")}
+                      >
+                        <span>
+                          <strong>{item.name}</strong>
+                          <small>
+                            {events.find((event) => event.id === item.eventId)
+                              ?.title || item.eventId}
+                          </small>
+                        </span>
+                        <em className={`application-status ${item.status}`}>
+                          {applicationStatusLabels[item.status]}
+                        </em>
+                      </button>
+                    ))
+                ) : (
+                  <p className="admin-dashboard-empty">
+                    아직 접수된 신청이 없습니다.
+                  </p>
+                )}
+              </section>
+              <section>
+                <div className="admin-dashboard-panel-heading">
+                  <div>
+                    <span>ACTIVITY</span>
+                    <h3>최근 관리자 활동</h3>
+                  </div>
+                  <button onClick={() => changeTab("auditLogs")}>
+                    전체 보기 <ArrowRight size={14} />
+                  </button>
+                </div>
+                {auditLogs.length ? (
+                  auditLogs.slice(0, 5).map((log) => (
+                    <div className="admin-dashboard-row" key={log.id}>
+                      <span>
+                        <strong>
+                          {auditActionLabels[log.action] || log.action}
+                        </strong>
+                        <small>{log.details}</small>
+                      </span>
+                      <time>
+                        {log.createdAt?.toDate().toLocaleDateString("ko-KR") ||
+                          "확인 중"}
+                      </time>
+                    </div>
+                  ))
+                ) : (
+                  <p className="admin-dashboard-empty">
+                    아직 기록된 관리자 작업이 없습니다.
+                  </p>
+                )}
+              </section>
+            </div>
+          </div>
+        ) : tab === "overview" ? (
           <form className="admin-form overview-form" onSubmit={submitOverview}>
             <p className="admin-help">
               공개 사이트의 첫 화면과 팀 소개 문구입니다. 저장 즉시 반영됩니다.
@@ -2827,7 +3004,7 @@ function AdminPanel(props: AdminProps) {
                   <option value="new">신규</option>
                   <option value="reviewing">검토 중</option>
                   <option value="accepted">승인</option>
-                  <option value="declined">거절</option>
+                  <option value="declined">미선정</option>
                 </select>
               </label>
               <button
@@ -2847,7 +3024,9 @@ function AdminPanel(props: AdminProps) {
                 filteredApplications.map((item) => (
                   <article className="application-record" key={item.id}>
                     <div>
-                      <span className="admin-pill">{item.status}</span>
+                      <span className={`admin-pill ${item.status}`}>
+                        {applicationStatusLabels[item.status]}
+                      </span>
                       <h3>
                         {item.name} <small>{item.email}</small>
                       </h3>
@@ -2881,7 +3060,7 @@ function AdminPanel(props: AdminProps) {
                         <option value="new">신규</option>
                         <option value="reviewing">검토 중</option>
                         <option value="accepted">승인</option>
-                        <option value="declined">거절</option>
+                        <option value="declined">미선정</option>
                       </select>
                       {deletingId === `application:${item.id}` ? (
                         <span className="admin-delete-confirm">
