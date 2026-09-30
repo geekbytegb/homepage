@@ -622,6 +622,19 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (loginOpen) return;
+    setLoginPassword("");
+    setLoginError("");
+    setLoginNotice("");
+  }, [loginOpen]);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    setActiveAdmin(false);
+    setAdminMessage("");
+  }, [isAdmin]);
+
+  useEffect(() => {
     if (!db || !user?.email) {
       setIsAdmin(hasAdminClaim);
       setIsMember(hasMemberClaim);
@@ -694,7 +707,10 @@ function App() {
   }, [isAdmin]);
 
   useEffect(() => {
-    if (!db || !isAdmin) return;
+    if (!db || !isAdmin) {
+      setApplications([]);
+      return;
+    }
     return onSnapshot(
       collection(db, "applications"),
       (snapshot) => {
