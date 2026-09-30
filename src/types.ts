@@ -40,6 +40,7 @@ export type IntranetResource = Entry & {
   description: string;
   category: string;
   url: string;
+  order?: number;
 };
 export type IntranetProject = Entry & {
   title: string;
@@ -48,6 +49,7 @@ export type IntranetProject = Entry & {
   status: "planning" | "active" | "blocked" | "done";
   progress: number;
   url: string;
+  order?: number;
 };
 export type IntranetMeeting = Entry & {
   title: string;
@@ -64,6 +66,7 @@ export type Product = Entry & {
   status: string;
   imageUrl: string;
   imageAlt: string;
+  order?: number;
 };
 export type Event = Entry & {
   title: string;
@@ -76,6 +79,7 @@ export type Event = Entry & {
   registrationDeadline: string;
   registrationDeadlineAt?: { toDate: () => Date };
   registrationOpen: boolean;
+  order?: number;
 };
 export type Application = {
   id: string;

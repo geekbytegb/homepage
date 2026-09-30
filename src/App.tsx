@@ -166,6 +166,9 @@ function registrationAvailable(event: Event) {
     event.registrationDeadlineAt!.toDate().getTime() > Date.now()
   );
 }
+function displayOrder(item: Entry & { order?: number }) {
+  return Number.isFinite(item.order) ? Number(item.order) : 9999;
+}
 
 function setMetaTag(selector: string, attribute: string, value: string) {
   const element = document.head.querySelector<HTMLMetaElement>(selector);
@@ -197,6 +200,7 @@ const emptyEditors: Record<
     status: "준비 중",
     imageUrl: "",
     imageAlt: "",
+    order: 1,
     published: false,
   },
   events: {
@@ -209,6 +213,7 @@ const emptyEditors: Record<
     capacity: "",
     registrationDeadline: "",
     registrationOpen: false,
+    order: 1,
     published: false,
   },
   intranetNotices: {
@@ -223,6 +228,7 @@ const emptyEditors: Record<
     description: "",
     category: "업무 자료",
     url: "",
+    order: 1,
     published: false,
   },
   intranetProjects: {
@@ -232,6 +238,7 @@ const emptyEditors: Record<
     status: "planning",
     progress: 0,
     url: "",
+    order: 1,
     published: false,
   },
   intranetMeetings: {
@@ -540,11 +547,25 @@ function App() {
     [notices.items],
   );
   const visibleProducts = useMemo(
-    () => products.items.filter((x) => x.published),
+    () =>
+      products.items
+        .filter((x) => x.published)
+        .sort(
+          (a, b) =>
+            displayOrder(a) - displayOrder(b) ||
+            a.name.localeCompare(b.name, "ko-KR"),
+        ),
     [products.items],
   );
   const visibleEvents = useMemo(
-    () => events.items.filter((x) => x.published),
+    () =>
+      events.items
+        .filter((x) => x.published)
+        .sort(
+          (a, b) =>
+            displayOrder(a) - displayOrder(b) ||
+            a.title.localeCompare(b.title, "ko-KR"),
+        ),
     [events.items],
   );
   const applicationsByEvent = useMemo(
@@ -562,11 +583,25 @@ function App() {
     [intranetNotices.items],
   );
   const visibleIntranetResources = useMemo(
-    () => intranetResources.items.filter((item) => item.published),
+    () =>
+      intranetResources.items
+        .filter((item) => item.published)
+        .sort(
+          (a, b) =>
+            displayOrder(a) - displayOrder(b) ||
+            a.title.localeCompare(b.title, "ko-KR"),
+        ),
     [intranetResources.items],
   );
   const visibleIntranetProjects = useMemo(
-    () => intranetProjects.items.filter((item) => item.published),
+    () =>
+      intranetProjects.items
+        .filter((item) => item.published)
+        .sort(
+          (a, b) =>
+            displayOrder(a) - displayOrder(b) ||
+            a.title.localeCompare(b.title, "ko-KR"),
+        ),
     [intranetProjects.items],
   );
   const visibleIntranetMeetings = useMemo(
@@ -2735,6 +2770,22 @@ function AdminPanel(props: AdminProps) {
       )}
     </label>
   );
+  const orderField = (
+    <label>
+      표시 순서
+      <input
+        type="number"
+        min="1"
+        value={Number(entryDraft.order || 1)}
+        onChange={(event) =>
+          setEntryDraft({
+            ...entryDraft,
+            order: Math.max(1, Number(event.target.value)),
+          })
+        }
+      />
+    </label>
+  );
 
   return (
     <div className="admin-screen">
@@ -3492,6 +3543,7 @@ function AdminPanel(props: AdminProps) {
                       )}
                     </label>
                     {textField("imageAlt", "이미지 설명 (접근성)")}
+                    {orderField}
                   </>
                 )}
                 {tab === "events" && (
@@ -3523,6 +3575,7 @@ function AdminPanel(props: AdminProps) {
                     {textField("location", "장소 또는 접속 안내")}
                     {textField("capacity", "정원 (선택)")}
                     {textField("registrationDeadline", "신청 마감일")}
+                    {orderField}
                     <label className="admin-check">
                       <input
                         type="checkbox"
@@ -3544,6 +3597,7 @@ function AdminPanel(props: AdminProps) {
                     {textField("category", "분류", true)}
                     {textField("description", "설명", true, true)}
                     {textField("url", "자료 링크 (HTTPS)", true)}
+                    {orderField}
                   </>
                 )}
                 {tab === "intranetProjects" && (
@@ -3551,6 +3605,7 @@ function AdminPanel(props: AdminProps) {
                     {textField("title", "프로젝트 이름", true)}
                     {textField("summary", "현재 상황 요약", true, true)}
                     {textField("owner", "담당자 또는 팀")}
+                    {orderField}
                     <label>
                       진행 상태
                       <select
@@ -3629,79 +3684,86 @@ function AdminPanel(props: AdminProps) {
             )}
             <div className="admin-list">
               {collections[tab].length ? (
-                collections[tab].map((item) => (
-                  <article className="admin-row" key={item.id}>
-                    <div>
-                      <span
-                        className={
-                          item.published ? "admin-pill published" : "admin-pill"
-                        }
-                      >
-                        {item.published ? "게시 중" : "비공개"}
-                      </span>
-                      <h3>
-                        {"title" in item
-                          ? String(item.title)
-                          : "name" in item
-                            ? String(item.name)
-                            : item.id}
-                      </h3>
-                      <p>
-                        {"description" in item
-                          ? String(item.description)
-                          : "body" in item
-                            ? String(item.body)
-                            : ""}
-                      </p>
-                    </div>
-                    <div className="admin-row-actions">
-                      <button
-                        disabled={saving}
-                        onClick={() => togglePublished(item)}
-                        aria-label={`${item.published ? "비공개로 전환" : "게시"}`}
-                      >
-                        {item.published ? (
-                          <EyeOff size={17} />
-                        ) : (
-                          <Eye size={17} />
-                        )}
-                        {item.published ? "비공개" : "게시"}
-                      </button>
-                      <button disabled={saving} onClick={() => startEdit(item)}>
-                        수정 <ArrowUpRight size={17} />
-                      </button>
-                      {deletingId === item.id ? (
-                        <span className="admin-delete-confirm">
-                          <button
-                            className="danger"
-                            disabled={saving}
-                            onClick={() => removeEntry(item.id)}
-                          >
-                            삭제 확인
-                          </button>
-                          <button onClick={() => setDeletingId(null)}>
-                            취소
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          className="icon-danger"
-                          disabled={saving}
-                          onClick={() => setDeletingId(item.id)}
-                          aria-label={`${
-                            "title" in item
-                              ? String(item.title)
-                              : "name" in item
-                                ? String(item.name)
-                                : "항목"
-                          } 삭제`}
+                [...collections[tab]]
+                  .sort((a, b) => displayOrder(a) - displayOrder(b))
+                  .map((item) => (
+                    <article className="admin-row" key={item.id}>
+                      <div>
+                        <span
+                          className={
+                            item.published
+                              ? "admin-pill published"
+                              : "admin-pill"
+                          }
                         >
-                          <Trash2 size={17} />
+                          {item.published ? "게시 중" : "비공개"}
+                        </span>
+                        <h3>
+                          {"title" in item
+                            ? String(item.title)
+                            : "name" in item
+                              ? String(item.name)
+                              : item.id}
+                        </h3>
+                        <p>
+                          {"description" in item
+                            ? String(item.description)
+                            : "body" in item
+                              ? String(item.body)
+                              : ""}
+                        </p>
+                      </div>
+                      <div className="admin-row-actions">
+                        <button
+                          disabled={saving}
+                          onClick={() => togglePublished(item)}
+                          aria-label={`${item.published ? "비공개로 전환" : "게시"}`}
+                        >
+                          {item.published ? (
+                            <EyeOff size={17} />
+                          ) : (
+                            <Eye size={17} />
+                          )}
+                          {item.published ? "비공개" : "게시"}
                         </button>
-                      )}
-                    </div>
-                  </article>
-                ))
+                        <button
+                          disabled={saving}
+                          onClick={() => startEdit(item)}
+                        >
+                          수정 <ArrowUpRight size={17} />
+                        </button>
+                        {deletingId === item.id ? (
+                          <span className="admin-delete-confirm">
+                            <button
+                              className="danger"
+                              disabled={saving}
+                              onClick={() => removeEntry(item.id)}
+                            >
+                              삭제 확인
+                            </button>
+                            <button onClick={() => setDeletingId(null)}>
+                              취소
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            className="icon-danger"
+                            disabled={saving}
+                            onClick={() => setDeletingId(item.id)}
+                            aria-label={`${
+                              "title" in item
+                                ? String(item.title)
+                                : "name" in item
+                                  ? String(item.name)
+                                  : "항목"
+                            } 삭제`}
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ))
               ) : (
                 <p className="admin-empty">
                   등록된 항목이 없습니다. 첫 항목을 추가해 보세요.
