@@ -83,6 +83,17 @@ import {
   type Product,
 } from "./types";
 const logo = "/geek-byte-logo.png";
+const MIN_PRIVACY_BODY_LENGTH = 80;
+
+function privacyNoticeReady(privacy: Privacy) {
+  return Boolean(
+    privacy.published &&
+    privacy.operator.trim() &&
+    privacy.contact.trim() &&
+    privacy.retention.trim() &&
+    privacy.body.trim().length >= MIN_PRIVACY_BODY_LENGTH,
+  );
+}
 
 type CollectionName =
   | "history"
@@ -762,13 +773,7 @@ function App() {
                 intranetEvents.error ||
                 chatChannels.error
               : "";
-  const privacyReady = Boolean(
-    privacy.published &&
-    privacy.operator &&
-    privacy.contact &&
-    privacy.retention &&
-    privacy.body,
-  );
+  const privacyReady = privacyNoticeReady(privacy);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -2815,13 +2820,7 @@ function AdminPanel(props: AdminProps) {
   const readinessChecks = buildLaunchReadiness({
     firebaseConfigured: configured,
     appCheckConfigured,
-    privacyReady: Boolean(
-      privacy.published &&
-      privacy.operator.trim() &&
-      privacy.contact.trim() &&
-      privacy.retention.trim() &&
-      privacy.body.trim(),
-    ),
+    privacyReady: privacyNoticeReady(privacy),
     contactEmailReady: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(overview.email.trim()),
     administratorCount: effectiveAdminCount,
     intranetMemberCount: intranetMembers,
@@ -2988,6 +2987,15 @@ function AdminPanel(props: AdminProps) {
   }
   async function submitPrivacy(event: FormEvent) {
     event.preventDefault();
+    if (
+      draftPrivacy.published &&
+      draftPrivacy.body.trim().length < MIN_PRIVACY_BODY_LENGTH
+    ) {
+      setMessage(
+        `개인정보 처리방침 전문을 최소 ${MIN_PRIVACY_BODY_LENGTH}자 이상 입력해 주세요. 기준을 충족하기 전에는 행사 신청이 차단됩니다.`,
+      );
+      return;
+    }
     setSaving(true);
     try {
       await onSavePrivacy(draftPrivacy);
@@ -3584,7 +3592,8 @@ function AdminPanel(props: AdminProps) {
           <form className="admin-form overview-form" onSubmit={submitPrivacy}>
             <p className="admin-help">
               운영 주체·문의처·보유 기간과 실제 처리방침을 확정한 뒤 게시하세요.
-              안내가 게시되기 전에는 행사 신청이 차단됩니다.
+              처리방침 전문은 최소 {MIN_PRIVACY_BODY_LENGTH}자 이상이어야 하며,
+              기준을 충족하기 전에는 행사 신청이 차단됩니다.
             </p>
             <label>
               운영 주체
@@ -3623,12 +3632,19 @@ function AdminPanel(props: AdminProps) {
               개인정보 처리방침 전문
               <textarea
                 required={draftPrivacy.published}
+                minLength={
+                  draftPrivacy.published ? MIN_PRIVACY_BODY_LENGTH : undefined
+                }
                 rows={12}
                 value={draftPrivacy.body}
                 onChange={(e) =>
                   setDraftPrivacy({ ...draftPrivacy, body: e.target.value })
                 }
               />
+              <span className="admin-help" aria-live="polite">
+                현재 {draftPrivacy.body.trim().length}자 / 게시 최소 기준{" "}
+                {MIN_PRIVACY_BODY_LENGTH}자
+              </span>
             </label>
             <label className="admin-check">
               <input

@@ -49,7 +49,7 @@ before(async () => {
       operator: "Geek Byte",
       contact: "contact@example.com",
       retention: "1 year",
-      body: "Policy",
+      body: "Geek Byte 개인정보 처리방침은 수집 항목, 이용 목적, 보유 기간, 파기 절차, 정보주체의 권리와 문의 방법을 구체적으로 안내합니다. 자세한 내용입니다.",
     });
     await setDoc(doc(store, "intranetNotices", "internal"), {
       title: "Internal",
@@ -779,14 +779,14 @@ test("applicants can create only their own initial application once", async () =
   await assertFails(getDocs(collection(store, "applications")));
 });
 
-test("applications are blocked when the privacy notice is unpublished", async () => {
+test("applications are blocked when the privacy notice is unpublished or incomplete", async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), "site", "privacy"), {
       published: false,
       operator: "Geek Byte",
       contact: "contact@example.com",
       retention: "1 year",
-      body: "Policy",
+      body: "Geek Byte 개인정보 처리방침은 수집 항목, 이용 목적, 보유 기간, 파기 절차, 정보주체의 권리와 문의 방법을 구체적으로 안내합니다. 자세한 내용입니다.",
     });
   });
   const store = environment.authenticatedContext("student2").firestore();
@@ -804,4 +804,27 @@ test("applications are blocked when the privacy notice is unpublished", async ()
     }),
   );
   await assertFails(getDoc(doc(store, "site", "privacy")));
+
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "site", "privacy"), {
+      published: true,
+      operator: "Geek Byte",
+      contact: "contact@example.com",
+      retention: "1 year",
+      body: "임시",
+    });
+  });
+  await assertFails(
+    setDoc(doc(store, "applications", "student2_event1"), {
+      userId: "student2",
+      eventId: "event1",
+      name: "Student Two",
+      email: "two@example.com",
+      phone: "010-1234-5678",
+      motivation: "",
+      consent: true,
+      status: "new",
+      createdAt: serverTimestamp(),
+    }),
+  );
 });
