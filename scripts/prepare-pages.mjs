@@ -23,6 +23,11 @@ const routes = {
     title: "문의 | Geek Byte",
     description: "협업과 제안, Geek Byte에 관한 문의를 시작하세요.",
   },
+  intranet: {
+    title: "인트라넷 | Geek Byte",
+    description: "Geek Byte 구성원을 위한 내부 업무 공간입니다.",
+    noindex: true,
+  },
 };
 const source = join("dist", "index.html");
 const template = await readFile(source, "utf8");
@@ -73,6 +78,9 @@ function createPageHtml(route, metadata) {
     metadata.description,
   );
   html = replaceAttribute(html, 'rel="canonical"', "href", url);
+  if (metadata.noindex) {
+    html = replaceAttribute(html, 'name="robots"', "content", "noindex,follow");
+  }
   return html;
 }
 

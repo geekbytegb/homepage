@@ -49,6 +49,8 @@ import {
   type Event,
   type Entry,
   type HistoryItem,
+  type IntranetResource,
+  type Member,
   type Notice,
   type Overview,
   type Privacy,
@@ -57,8 +59,14 @@ import {
 const logo = "/geek-byte-logo.png";
 
 type CollectionName =
-  "history" | "notices" | "products" | "events" | "applications";
-type AdminTab = "overview" | "privacy" | CollectionName;
+  | "history"
+  | "notices"
+  | "products"
+  | "events"
+  | "intranetNotices"
+  | "intranetResources"
+  | "applications";
+type AdminTab = "overview" | "privacy" | "members" | CollectionName;
 const initialForm = {
   name: "",
   email: "",
@@ -104,6 +112,10 @@ const pageMetadata: Record<string, { title: string; description: string }> = {
   "/contact": {
     title: "문의 | Geek Byte",
     description: "협업과 제안, Geek Byte에 관한 문의를 시작하세요.",
+  },
+  "/intranet": {
+    title: "인트라넷 | Geek Byte",
+    description: "Geek Byte 구성원을 위한 내부 업무 공간입니다.",
   },
   "/404": {
     title: "페이지를 찾을 수 없습니다 | Geek Byte",
@@ -155,21 +167,43 @@ const emptyEditors: Record<
     registrationOpen: false,
     published: false,
   },
+  intranetNotices: {
+    title: "",
+    body: "",
+    date: new Date().toISOString().slice(0, 10),
+    pinned: false,
+    published: false,
+  },
+  intranetResources: {
+    title: "",
+    description: "",
+    category: "업무 자료",
+    url: "",
+    published: false,
+  },
 };
 
 function useEntries<T extends Entry>(
   name: Exclude<CollectionName, "applications">,
   admin: boolean,
   fallback: T[] = [],
+  memberOnly = false,
+  member = false,
 ) {
   const [items, setItems] = useState<T[]>(fallback);
   const [error, setError] = useState("");
   useEffect(() => {
     if (!db) return;
+    if (memberOnly && !member) {
+      setItems([]);
+      setError("");
+      return;
+    }
     const source = collection(db, name);
-    const target = admin
-      ? source
-      : query(source, where("published", "==", true));
+    const target =
+      admin || memberOnly
+        ? source
+        : query(source, where("published", "==", true));
     return onSnapshot(
       target,
       (snapshot) => {
@@ -180,7 +214,7 @@ function useEntries<T extends Entry>(
       },
       () => setError("콘텐츠를 불러오지 못했습니다."),
     );
-  }, [name, admin]);
+  }, [name, admin, member, memberOnly]);
   return { items, error };
 }
 
@@ -195,10 +229,13 @@ function App() {
     "/notices",
     "/events",
     "/contact",
+    "/intranet",
   ]);
   const page = validPaths.has(normalizedPath) ? normalizedPath : "/404";
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isMember, setIsMember] = useState(false);
+  const [hasMemberClaim, setHasMemberClaim] = useState(false);
   const [overview, setOverview] = useState<Overview>(defaultOverview);
   const [privacy, setPrivacy] = useState<Privacy>(defaultPrivacy);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -216,6 +253,7 @@ function App() {
   const [applicationMessage, setApplicationMessage] = useState("");
   const [savingApplication, setSavingApplication] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [adminMessage, setAdminMessage] = useState("");
   const [failedProductImages, setFailedProductImages] = useState<Set<string>>(
     new Set(),
@@ -229,6 +267,20 @@ function App() {
   const notices = useEntries<Notice>("notices", isAdmin);
   const products = useEntries<Product>("products", isAdmin);
   const events = useEntries<Event>("events", isAdmin);
+  const intranetNotices = useEntries<Notice>(
+    "intranetNotices",
+    isAdmin,
+    [],
+    true,
+    isMember,
+  );
+  const intranetResources = useEntries<IntranetResource>(
+    "intranetResources",
+    isAdmin,
+    [],
+    true,
+    isMember,
+  );
 
   useEffect(() => {
     if (!auth) return;
@@ -236,13 +288,40 @@ function App() {
       setUser(current);
       try {
         const token = current ? await current.getIdTokenResult(true) : null;
-        setIsAdmin(token?.claims.admin === true);
+        const admin = token?.claims.admin === true;
+        const memberClaim = token?.claims.member === true;
+        setIsAdmin(admin);
+        setHasMemberClaim(memberClaim);
+        setIsMember(admin || memberClaim);
       } catch {
         setIsAdmin(false);
+        setHasMemberClaim(false);
+        setIsMember(false);
       }
-      if (!current) setActiveAdmin(false);
+      if (!current) {
+        setActiveAdmin(false);
+        setIsMember(false);
+      }
     });
   }, []);
+
+  useEffect(() => {
+    if (!db || !user?.email) {
+      if (!isAdmin && !hasMemberClaim) setIsMember(false);
+      return;
+    }
+    if (isAdmin || hasMemberClaim) {
+      setIsMember(true);
+      return;
+    }
+    const email = user.email.toLocaleLowerCase("en-US");
+    return onSnapshot(
+      doc(db, "members", email),
+      (snapshot) =>
+        setIsMember(snapshot.exists() && snapshot.data().active === true),
+      () => setIsMember(false),
+    );
+  }, [hasMemberClaim, isAdmin, user]);
 
   useEffect(() => {
     if (!db) return;
@@ -277,6 +356,23 @@ function App() {
         );
       },
       () => setAdminMessage("신청 내역을 불러오지 못했습니다."),
+    );
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!db || !isAdmin) {
+      setMembers([]);
+      return;
+    }
+    return onSnapshot(
+      collection(db, "members"),
+      (snapshot) =>
+        setMembers(
+          snapshot.docs.map(
+            (item) => ({ id: item.id, ...item.data() }) as Member,
+          ),
+        ),
+      () => setAdminMessage("구성원 권한 목록을 불러오지 못했습니다."),
     );
   }, [isAdmin]);
 
@@ -315,6 +411,20 @@ function App() {
     () => events.items.filter((x) => x.published),
     [events.items],
   );
+  const visibleIntranetNotices = useMemo(
+    () =>
+      intranetNotices.items
+        .filter((item) => item.published)
+        .sort(
+          (a, b) =>
+            Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date),
+        ),
+    [intranetNotices.items],
+  );
+  const visibleIntranetResources = useMemo(
+    () => intranetResources.items.filter((item) => item.published),
+    [intranetResources.items],
+  );
   const contentError =
     page === "/about"
       ? history.error
@@ -324,7 +434,9 @@ function App() {
           ? notices.error
           : page === "/events"
             ? events.error
-            : "";
+            : page === "/intranet"
+              ? intranetNotices.error || intranetResources.error
+              : "";
   const privacyReady = Boolean(
     privacy.published &&
     privacy.operator &&
@@ -345,7 +457,9 @@ function App() {
     setMetaTag(
       'meta[name="robots"]',
       "content",
-      page === "/404" ? "noindex,follow" : "index,follow",
+      page === "/404" || page === "/intranet"
+        ? "noindex,follow"
+        : "index,follow",
     );
     setMetaTag('meta[name="description"]', "content", metadata.description);
     setMetaTag('meta[property="og:title"]', "content", metadata.title);
@@ -543,6 +657,39 @@ function App() {
     setAdminMessage("신청 내역이 삭제되었습니다.");
   }
 
+  async function saveMember(email: string, displayName: string) {
+    if (!db) return;
+    const normalizedEmail = email.trim().toLocaleLowerCase("en-US");
+    await setDoc(
+      doc(db, "members", normalizedEmail),
+      {
+        email: normalizedEmail,
+        displayName: displayName.trim(),
+        active: true,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    setAdminMessage("구성원 인트라넷 권한이 저장되었습니다.");
+  }
+
+  async function setMemberActive(member: Member, active: boolean) {
+    if (!db) return;
+    await updateDoc(doc(db, "members", member.id), {
+      active,
+      updatedAt: serverTimestamp(),
+    });
+    setAdminMessage(
+      active ? "구성원 권한을 활성화했습니다." : "구성원 권한을 중지했습니다.",
+    );
+  }
+
+  async function deleteMember(id: string) {
+    if (!db) return;
+    await deleteDoc(doc(db, "members", id));
+    setAdminMessage("구성원 권한을 삭제했습니다.");
+  }
+
   function enterAdmin() {
     if (!configured) {
       setLoginOpen(true);
@@ -586,6 +733,11 @@ function App() {
             <NavLink to="/events" onClick={() => setMenuOpen(false)}>
               행사
             </NavLink>
+            {isMember && (
+              <NavLink to="/intranet" onClick={() => setMenuOpen(false)}>
+                인트라넷
+              </NavLink>
+            )}
           </nav>
           <div className="header-actions">
             {user ? (
@@ -701,7 +853,7 @@ function App() {
             </>
           )}
 
-          {page !== "/" && page !== "/404" && (
+          {page !== "/" && page !== "/404" && page !== "/intranet" && (
             <section className="page-intro section-wrap">
               <p className="section-kicker">
                 GEEK BYTE / {page.slice(1).toUpperCase()}
@@ -1032,6 +1184,127 @@ function App() {
                 <span className="contact-link pending">
                   연락 채널 준비 중 <ArrowUpRight size={25} />
                 </span>
+              )}
+            </section>
+          )}
+          {page === "/intranet" && (
+            <section className="intranet-section section-wrap">
+              {!user ? (
+                <div className="intranet-gate">
+                  <LockKeyhole size={32} />
+                  <p className="section-kicker">
+                    <span>MEMBERS ONLY /</span> GEEK BYTE INTRANET
+                  </p>
+                  <h1>구성원 로그인이 필요합니다.</h1>
+                  <p>
+                    내부 자료와 공지는 승인된 Geek Byte 구성원만 확인할 수
+                    있습니다.
+                  </p>
+                  <button
+                    className="button button-primary"
+                    onClick={() => setLoginOpen(true)}
+                  >
+                    로그인 <ArrowRight size={17} />
+                  </button>
+                </div>
+              ) : !isMember ? (
+                <div className="intranet-gate">
+                  <ShieldCheck size={32} />
+                  <p className="section-kicker">
+                    <span>ACCESS /</span> PENDING
+                  </p>
+                  <h1>구성원 권한이 필요합니다.</h1>
+                  <p>
+                    현재 계정에는 인트라넷 권한이 없습니다. 관리자에게 등록을
+                    요청해 주세요.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="intranet-hero">
+                    <div>
+                      <p className="section-kicker">
+                        <span>MEMBERS ONLY /</span> GEEK BYTE INTRANET
+                      </p>
+                      <h1>팀의 일을 한곳에서.</h1>
+                      <p>
+                        {user.displayName || user.email}님, Geek Byte 내부 업무
+                        공간입니다.
+                      </p>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        className="button button-ghost"
+                        onClick={() => {
+                          setAdminTab("intranetNotices");
+                          setActiveAdmin(true);
+                        }}
+                      >
+                        내부 콘텐츠 관리 <ArrowUpRight size={17} />
+                      </button>
+                    )}
+                  </div>
+                  <div className="intranet-grid">
+                    <section className="intranet-panel">
+                      <div className="intranet-panel-heading">
+                        <span>INTERNAL NOTICE</span>
+                        <strong>{visibleIntranetNotices.length}</strong>
+                      </div>
+                      {visibleIntranetNotices.length ? (
+                        visibleIntranetNotices.map((notice) => (
+                          <article className="intranet-notice" key={notice.id}>
+                            <time dateTime={notice.date}>{notice.date}</time>
+                            <h2>
+                              {notice.pinned && <span>필독</span>}
+                              {notice.title}
+                            </h2>
+                            <p>{notice.body}</p>
+                          </article>
+                        ))
+                      ) : (
+                        <p className="intranet-empty">
+                          등록된 내부 공지가 없습니다.
+                        </p>
+                      )}
+                    </section>
+                    <section className="intranet-panel">
+                      <div className="intranet-panel-heading">
+                        <span>TEAM RESOURCES</span>
+                        <strong>{visibleIntranetResources.length}</strong>
+                      </div>
+                      <div className="intranet-resource-list">
+                        {visibleIntranetResources.length ? (
+                          visibleIntranetResources.map((resource) => {
+                            const resourceUrl = safeHttpUrl(resource.url);
+                            return (
+                              <article
+                                className="intranet-resource"
+                                key={resource.id}
+                              >
+                                <span>{resource.category}</span>
+                                <h2>{resource.title}</h2>
+                                <p>{resource.description}</p>
+                                {resourceUrl && (
+                                  <a
+                                    href={resourceUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    자료 열기 <ArrowUpRight size={16} />
+                                  </a>
+                                )}
+                              </article>
+                            );
+                          })
+                        ) : (
+                          <p className="intranet-empty">
+                            등록된 팀 자료가 없습니다.
+                          </p>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                </>
               )}
             </section>
           )}
@@ -1407,7 +1680,10 @@ function App() {
           notices={notices.items}
           products={products.items}
           events={events.items}
+          intranetNotices={intranetNotices.items}
+          intranetResources={intranetResources.items}
           applications={applications}
+          members={members}
           tab={adminTab}
           setTab={setAdminTab}
           onClose={() => setActiveAdmin(false)}
@@ -1416,6 +1692,9 @@ function App() {
           onSaveEntry={saveEntry}
           onStatus={changeApplicationStatus}
           onDeleteApplication={deleteApplication}
+          onSaveMember={saveMember}
+          onSetMemberActive={setMemberActive}
+          onDeleteMember={deleteMember}
           onDeleteEntry={deleteEntry}
           message={adminMessage}
           setMessage={setAdminMessage}
@@ -1432,7 +1711,10 @@ type AdminProps = {
   notices: Notice[];
   products: Product[];
   events: Event[];
+  intranetNotices: Notice[];
+  intranetResources: IntranetResource[];
   applications: Application[];
+  members: Member[];
   tab: AdminTab;
   setTab: (tab: AdminTab) => void;
   onClose: () => void;
@@ -1445,6 +1727,9 @@ type AdminProps = {
   ) => Promise<void>;
   onStatus: (item: Application, status: Application["status"]) => Promise<void>;
   onDeleteApplication: (id: string) => Promise<void>;
+  onSaveMember: (email: string, displayName: string) => Promise<void>;
+  onSetMemberActive: (member: Member, active: boolean) => Promise<void>;
+  onDeleteMember: (id: string) => Promise<void>;
   onDeleteEntry: (
     name: Exclude<CollectionName, "applications">,
     id: string,
@@ -1461,7 +1746,10 @@ function AdminPanel(props: AdminProps) {
     notices,
     products,
     events,
+    intranetNotices,
+    intranetResources,
     applications,
+    members,
     tab,
     setTab,
     onClose,
@@ -1470,6 +1758,9 @@ function AdminPanel(props: AdminProps) {
     onSaveEntry,
     onStatus,
     onDeleteApplication,
+    onSaveMember,
+    onSetMemberActive,
+    onDeleteMember,
     onDeleteEntry,
     message,
     setMessage,
@@ -1492,10 +1783,19 @@ function AdminPanel(props: AdminProps) {
   const [applicationStatus, setApplicationStatus] = useState<
     "all" | Application["status"]
   >("all");
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberName, setMemberName] = useState("");
   const collections: Record<
     Exclude<CollectionName, "applications">,
     Entry[]
-  > = { history, notices, products, events };
+  > = {
+    history,
+    notices,
+    products,
+    events,
+    intranetNotices,
+    intranetResources,
+  };
   const labels: Record<AdminTab, string> = {
     overview: "사이트 소개",
     privacy: "개인정보 안내",
@@ -1503,7 +1803,10 @@ function AdminPanel(props: AdminProps) {
     notices: "공지사항",
     products: "제품·서비스",
     events: "행사",
+    intranetNotices: "내부 공지",
+    intranetResources: "내부 자료",
     applications: "행사 신청",
+    members: "구성원 권한",
   };
   const filteredApplications = useMemo(() => {
     const term = applicationQuery.trim().toLocaleLowerCase("ko-KR");
@@ -1554,6 +1857,12 @@ function AdminPanel(props: AdminProps) {
       ) {
         throw new Error("INVALID_IMAGE_URL");
       }
+      if (
+        name === "intranetResources" &&
+        (!value.url || !safeImageUrl(String(value.url)))
+      ) {
+        throw new Error("INVALID_RESOURCE_URL");
+      }
       await onSaveEntry(
         name,
         value,
@@ -1564,7 +1873,9 @@ function AdminPanel(props: AdminProps) {
       setMessage(
         error instanceof Error && error.message === "INVALID_IMAGE_URL"
           ? "이미지는 https://로 시작하는 주소를 입력해 주세요."
-          : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
+          : error instanceof Error && error.message === "INVALID_RESOURCE_URL"
+            ? "내부 자료는 https://로 시작하는 주소를 입력해 주세요."
+            : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
       );
     } finally {
       setSaving(false);
@@ -1624,6 +1935,40 @@ function AdminPanel(props: AdminProps) {
       setDeletingId(null);
     } catch {
       setMessage("신청 내역 삭제에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function submitMember(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await onSaveMember(memberEmail, memberName);
+      setMemberEmail("");
+      setMemberName("");
+    } catch {
+      setMessage("구성원 권한 저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function toggleMember(member: Member) {
+    setSaving(true);
+    try {
+      await onSetMemberActive(member, !member.active);
+    } catch {
+      setMessage("구성원 권한 변경에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeMember(id: string) {
+    setSaving(true);
+    try {
+      await onDeleteMember(id);
+      setDeletingId(null);
+    } catch {
+      setMessage("구성원 권한 삭제에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -1842,6 +2187,103 @@ function AdminPanel(props: AdminProps) {
               변경사항 저장 <Check size={18} />
             </button>
           </form>
+        ) : tab === "members" ? (
+          <div className="admin-content">
+            <form className="admin-form member-form" onSubmit={submitMember}>
+              <p className="admin-help">
+                등록된 이메일로 로그인한 계정만 인트라넷을 이용할 수 있습니다.
+                이메일은 Firebase Authentication 계정과 정확히 같아야 합니다.
+              </p>
+              <div className="form-grid">
+                <label>
+                  구성원 이메일
+                  <input
+                    required
+                    type="email"
+                    value={memberEmail}
+                    onChange={(event) => setMemberEmail(event.target.value)}
+                    placeholder="member@geekbyte.kro.kr"
+                  />
+                </label>
+                <label>
+                  표시 이름
+                  <input
+                    required
+                    value={memberName}
+                    onChange={(event) => setMemberName(event.target.value)}
+                    placeholder="이름 또는 역할"
+                  />
+                </label>
+              </div>
+              <button className="button button-primary" disabled={saving}>
+                구성원 권한 추가 <ShieldCheck size={17} />
+              </button>
+            </form>
+            <div className="admin-list member-list">
+              <p className="application-count" role="status">
+                등록된 구성원 {members.length}명
+              </p>
+              {members.length ? (
+                [...members]
+                  .sort((a, b) => a.email.localeCompare(b.email))
+                  .map((member) => (
+                    <article className="admin-row" key={member.id}>
+                      <div>
+                        <span
+                          className={
+                            member.active
+                              ? "admin-pill published"
+                              : "admin-pill"
+                          }
+                        >
+                          {member.active ? "권한 활성" : "권한 중지"}
+                        </span>
+                        <h3>{member.displayName || "이름 없음"}</h3>
+                        <p>{member.email}</p>
+                      </div>
+                      <div className="admin-row-actions">
+                        <button
+                          disabled={saving}
+                          onClick={() => toggleMember(member)}
+                        >
+                          {member.active ? (
+                            <EyeOff size={17} />
+                          ) : (
+                            <Eye size={17} />
+                          )}
+                          {member.active ? "권한 중지" : "권한 활성"}
+                        </button>
+                        {deletingId === `member:${member.id}` ? (
+                          <span className="admin-delete-confirm">
+                            <button
+                              className="danger"
+                              disabled={saving}
+                              onClick={() => removeMember(member.id)}
+                            >
+                              삭제 확인
+                            </button>
+                            <button onClick={() => setDeletingId(null)}>
+                              취소
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            className="icon-danger"
+                            disabled={saving}
+                            onClick={() => setDeletingId(`member:${member.id}`)}
+                            aria-label={`${member.email} 구성원 권한 삭제`}
+                          >
+                            <Trash2 size={17} />
+                          </button>
+                        )}
+                      </div>
+                    </article>
+                  ))
+              ) : (
+                <p className="admin-empty">등록된 구성원이 없습니다.</p>
+              )}
+            </div>
+          </div>
         ) : tab === "applications" ? (
           <div className="admin-list">
             <p className="admin-help">
@@ -1967,7 +2409,10 @@ function AdminPanel(props: AdminProps) {
           <div className="admin-content">
             <div className="admin-list-heading">
               <p className="admin-help">
-                게시 상태인 항목만 공개 사이트에 표시됩니다.
+                게시 상태인 항목만
+                {tab.startsWith("intranet")
+                  ? " 구성원 인트라넷에 표시됩니다."
+                  : " 공개 사이트에 표시됩니다."}
               </p>
               <button
                 className="button button-primary"
@@ -2025,6 +2470,26 @@ function AdminPanel(props: AdminProps) {
                         }
                       />{" "}
                       상단 고정
+                    </label>
+                  </>
+                )}
+                {tab === "intranetNotices" && (
+                  <>
+                    {textField("title", "내부 공지 제목", true)}
+                    {textField("body", "내용", true, true)}
+                    {textField("date", "날짜", true)}
+                    <label className="admin-check">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(entryDraft.pinned)}
+                        onChange={(e) =>
+                          setEntryDraft({
+                            ...entryDraft,
+                            pinned: e.target.checked,
+                          })
+                        }
+                      />{" "}
+                      필독 공지
                     </label>
                   </>
                 )}
@@ -2099,6 +2564,14 @@ function AdminPanel(props: AdminProps) {
                     </label>
                   </>
                 )}
+                {tab === "intranetResources" && (
+                  <>
+                    {textField("title", "자료 이름", true)}
+                    {textField("category", "분류", true)}
+                    {textField("description", "설명", true, true)}
+                    {textField("url", "자료 링크 (HTTPS)", true)}
+                  </>
+                )}
                 <label className="admin-check">
                   <input
                     type="checkbox"
@@ -2110,7 +2583,9 @@ function AdminPanel(props: AdminProps) {
                       })
                     }
                   />{" "}
-                  공개 사이트에 게시
+                  {tab.startsWith("intranet")
+                    ? "인트라넷에 게시"
+                    : "공개 사이트에 게시"}
                 </label>
                 <div className="entry-actions">
                   <button

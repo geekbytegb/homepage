@@ -3,6 +3,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function admin() { return signedIn() && request.auth.token.get('admin', false) == true; }
+    function member() {
+      return admin()
+        || (signedIn() && request.auth.token.get('member', false) == true)
+        || (signedIn()
+          && request.auth.token.email is string
+          && exists(/databases/$(database)/documents/members/$(request.auth.token.email))
+          && get(/databases/$(database)/documents/members/$(request.auth.token.email)).data.active == true);
+    }
     function publicOrAdmin() { return admin() || resource.data.published == true; }
     function privacyReady() {
       return exists(/databases/$(database)/documents/site/privacy)
@@ -36,6 +44,19 @@ service cloud.firestore {
     match /events/{eventId} {
       allow read: if publicOrAdmin();
       allow write: if admin();
+    }
+    match /intranetNotices/{itemId} {
+      allow read: if member();
+      allow write: if admin();
+    }
+    match /intranetResources/{itemId} {
+      allow read: if member();
+      allow write: if admin();
+    }
+    match /members/{memberEmail} {
+      allow read: if admin()
+        || (signedIn() && request.auth.token.email == memberEmail);
+      allow create, update, delete: if admin();
     }
     match /applications/{applicationId} {
       allow read: if admin() || (signedIn() && resource.data.userId == request.auth.uid);

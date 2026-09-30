@@ -35,6 +35,12 @@ export type Notice = Entry & {
   date: string;
   pinned: boolean;
 };
+export type IntranetResource = Entry & {
+  title: string;
+  description: string;
+  category: string;
+  url: string;
+};
 export type Product = Entry & {
   name: string;
   category: string;
@@ -66,6 +72,13 @@ export type Application = {
   consent: boolean;
   status: "new" | "reviewing" | "accepted" | "declined";
   createdAt?: { toDate: () => Date };
+};
+export type Member = {
+  id: string;
+  email: string;
+  displayName: string;
+  active: boolean;
+  updatedAt?: { toDate: () => Date };
 };
 
 export const defaultOverview: Overview = {

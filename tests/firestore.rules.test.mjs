@@ -45,6 +45,21 @@ before(async () => {
       retention: "1 year",
       body: "Policy",
     });
+    await setDoc(doc(store, "intranetNotices", "internal"), {
+      title: "Internal",
+      body: "Members only",
+      published: true,
+    });
+    await setDoc(doc(store, "members", "listed@example.com"), {
+      email: "listed@example.com",
+      displayName: "Listed Member",
+      active: true,
+    });
+    await setDoc(doc(store, "members", "inactive@example.com"), {
+      email: "inactive@example.com",
+      displayName: "Inactive Member",
+      active: false,
+    });
   });
 });
 after(async () => {
@@ -74,6 +89,45 @@ test("a signed-in visitor cannot gain admin write access", async () => {
   await assertFails(
     setDoc(doc(store, "products", "injected"), {
       name: "Injected",
+      published: true,
+    }),
+  );
+});
+
+test("only members and admins can read intranet content", async () => {
+  const visitor = environment.authenticatedContext("visitor").firestore();
+  await assertFails(getDoc(doc(visitor, "intranetNotices", "internal")));
+  const member = environment
+    .authenticatedContext("member", { member: true })
+    .firestore();
+  await assertSucceeds(getDoc(doc(member, "intranetNotices", "internal")));
+  await assertFails(
+    setDoc(doc(member, "intranetNotices", "member-write"), {
+      title: "Not allowed",
+      published: true,
+    }),
+  );
+  const listedMember = environment
+    .authenticatedContext("listed", { email: "listed@example.com" })
+    .firestore();
+  await assertSucceeds(
+    getDoc(doc(listedMember, "intranetNotices", "internal")),
+  );
+  await assertSucceeds(
+    getDoc(doc(listedMember, "members", "listed@example.com")),
+  );
+  await assertFails(getDocs(collection(listedMember, "members")));
+  const inactiveMember = environment
+    .authenticatedContext("inactive", { email: "inactive@example.com" })
+    .firestore();
+  await assertFails(getDoc(doc(inactiveMember, "intranetNotices", "internal")));
+  const admin = environment
+    .authenticatedContext("admin", { admin: true })
+    .firestore();
+  await assertSucceeds(getDoc(doc(admin, "intranetNotices", "internal")));
+  await assertSucceeds(
+    setDoc(doc(admin, "intranetResources", "handbook"), {
+      title: "Handbook",
       published: true,
     }),
   );

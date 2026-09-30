@@ -9,8 +9,8 @@ const required = [
   "sitemap.xml",
   "site.webmanifest",
   "geek-byte-logo.png",
-  ...["about", "products", "notices", "events", "contact"].map((route) =>
-    join(route, "index.html"),
+  ...["about", "products", "notices", "events", "contact", "intranet"].map(
+    (route) => join(route, "index.html"),
   ),
 ];
 
@@ -20,6 +20,7 @@ const pages = {
   notices: "소식 | Geek Byte",
   events: "행사 | Geek Byte",
   contact: "문의 | Geek Byte",
+  intranet: "인트라넷 | Geek Byte",
 };
 
 await Promise.all(required.map((file) => access(join("dist", file))));
@@ -49,6 +50,14 @@ for (const [route, title] of Object.entries(pages)) {
   if (!routeHtml.includes(`property="og:url" content="${canonical}"`)) {
     throw new Error(`Incorrect Open Graph URL for /${route}/`);
   }
+}
+
+const intranetHtml = await readFile(
+  join("dist", "intranet", "index.html"),
+  "utf8",
+);
+if (!intranetHtml.includes('name="robots" content="noindex,follow"')) {
+  throw new Error("Intranet page must not be indexed");
 }
 
 const notFoundHtml = await readFile(join("dist", "404.html"), "utf8");
