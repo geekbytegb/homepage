@@ -1635,6 +1635,51 @@ select:focus-visible {
   flex: none;
   justify-content: center;
 }
+.admin-backup-upload-input {
+  display: none;
+}
+.admin-backup-preview {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 28px;
+  padding: 22px 24px;
+  border: 1px solid #665440;
+  background: #211d1a;
+}
+.admin-backup-preview > div:first-child {
+  min-width: 0;
+}
+.admin-backup-preview span {
+  color: #efbb7c;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+.admin-backup-preview h3 {
+  overflow-wrap: anywhere;
+  margin: 7px 0 8px;
+  font-size: 17px;
+}
+.admin-backup-preview p {
+  max-width: 760px;
+  margin: 0;
+  color: #b9ad9f;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.admin-backup-preview-actions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.admin-backup-preview .danger {
+  border-color: #8e5248;
+  background: #762f2b;
+  color: #fff;
+}
 .admin-stat-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2687,6 +2732,13 @@ button.admin-dashboard-row:hover {
   }
   .admin-dashboard-panels {
     grid-template-columns: 1fr;
+  }
+  .admin-backup-preview {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .admin-backup-preview-actions {
+    justify-content: flex-start;
   }
   .admin-top h1 {
     font-size: 28px;

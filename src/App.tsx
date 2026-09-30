@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   onAuthStateChanged,
@@ -39,9 +46,17 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { auth, configured, db } from "./firebase";
+import {
+  contentBackupCount,
+  parseContentBackup,
+  restoreFirestoreValue,
+  type BackupEntry,
+  type ContentBackupPayload,
+} from "./contentBackup";
 import {
   defaultOverview,
   defaultPrivacy,
@@ -158,6 +173,7 @@ const auditActionLabels: Record<string, string> = {
   "role.toggle": "계정 역할 변경",
   "role.active": "계정 상태 변경",
   "role.delete": "계정 역할 삭제",
+  "backup.restore": "콘텐츠 백업 복원",
 };
 function registrationAvailable(event: Event) {
   const deadline = timestampDate(event.registrationDeadlineAt);
@@ -966,6 +982,53 @@ function App() {
     appendAudit(batch, "content.delete", `${name}/${id}`, `${name} 삭제`);
     await batch.commit();
     setAdminMessage("항목이 삭제되었습니다.");
+  }
+
+  async function restoreContentBackup(payload: ContentBackupPayload) {
+    const database = db;
+    if (!database) return 0;
+    const groups: Array<
+      [Exclude<CollectionName, "applications">, BackupEntry[]]
+    > = [
+      ["history", payload.publicContent.history],
+      ["notices", payload.publicContent.notices],
+      ["products", payload.publicContent.products],
+      ["events", payload.publicContent.events],
+      ["intranetNotices", payload.intranetContent.notices],
+      ["intranetResources", payload.intranetContent.resources],
+      ["intranetProjects", payload.intranetContent.projects],
+      ["intranetMeetings", payload.intranetContent.meetings],
+      ["intranetProfiles", payload.intranetContent.profiles],
+    ];
+    const batch = writeBatch(database);
+    batch.set(
+      doc(database, "site", "overview"),
+      restoreFirestoreValue(payload.site.overview) as Record<string, unknown>,
+    );
+    batch.set(
+      doc(database, "site", "privacy"),
+      restoreFirestoreValue(payload.site.privacy) as Record<string, unknown>,
+    );
+    let contentCount = 0;
+    groups.forEach(([name, items]) => {
+      items.forEach((item) => {
+        const { id, ...data } = item;
+        batch.set(
+          doc(database, name, id),
+          restoreFirestoreValue(data) as Record<string, unknown>,
+        );
+        contentCount += 1;
+      });
+    });
+    appendAudit(
+      batch,
+      "backup.restore",
+      `content-backup/${payload.exportedAt}`,
+      `사이트 문서 2개와 콘텐츠 ${contentCount}개 병합 복원`,
+    );
+    await batch.commit();
+    setAdminMessage(`콘텐츠 ${contentCount}개를 백업에서 복원했습니다.`);
+    return contentCount;
   }
 
   async function changeApplicationStatus(
@@ -2391,6 +2454,7 @@ function App() {
           onSetMemberActive={setMemberActive}
           onDeleteMember={deleteMember}
           onDeleteEntry={deleteEntry}
+          onRestoreContentBackup={restoreContentBackup}
           message={adminMessage}
           setMessage={setAdminMessage}
         />
@@ -2444,6 +2508,7 @@ type AdminProps = {
     name: Exclude<CollectionName, "applications">,
     id: string,
   ) => Promise<void>;
+  onRestoreContentBackup: (payload: ContentBackupPayload) => Promise<number>;
   message: string;
   setMessage: (message: string) => void;
 };
@@ -2479,11 +2544,13 @@ function AdminPanel(props: AdminProps) {
     onSetMemberActive,
     onDeleteMember,
     onDeleteEntry,
+    onRestoreContentBackup,
     message,
     setMessage,
   } = props;
   const [draftOverview, setDraftOverview] = useState(overview);
   const adminMainRef = useRef<HTMLElement>(null);
+  const backupInputRef = useRef<HTMLInputElement>(null);
   const [draftPrivacy, setDraftPrivacy] = useState(privacy);
   useEffect(() => {
     setDraftOverview(overview);
@@ -2511,6 +2578,12 @@ function AdminPanel(props: AdminProps) {
   const [memberName, setMemberName] = useState("");
   const [newAdminAccess, setNewAdminAccess] = useState(false);
   const [newMemberAccess, setNewMemberAccess] = useState(true);
+  const [backupPreview, setBackupPreview] = useState<{
+    fileName: string;
+    itemCount: number;
+    payload: ContentBackupPayload;
+  } | null>(null);
+  const [backupRestoreConfirm, setBackupRestoreConfirm] = useState(false);
   const collections: Record<
     Exclude<CollectionName, "applications">,
     Entry[]
@@ -2920,6 +2993,45 @@ function AdminPanel(props: AdminProps) {
     link.click();
     URL.revokeObjectURL(url);
   }
+  async function inspectContentBackup(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setBackupRestoreConfirm(false);
+    if (file.size > 5 * 1024 * 1024) {
+      setBackupPreview(null);
+      setMessage("백업 파일은 5MB 이하여야 합니다.");
+      return;
+    }
+    try {
+      const payload = parseContentBackup(await file.text());
+      const itemCount = contentBackupCount(payload);
+      setBackupPreview({ fileName: file.name, itemCount, payload });
+      setMessage("백업 검사가 완료되었습니다. 내용을 확인한 뒤 복원하세요.");
+    } catch (error) {
+      setBackupPreview(null);
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "백업 파일을 검사하지 못했습니다.",
+      );
+    }
+  }
+  async function restoreInspectedBackup() {
+    if (!backupPreview) return;
+    setSaving(true);
+    try {
+      await onRestoreContentBackup(backupPreview.payload);
+      setBackupPreview(null);
+      setBackupRestoreConfirm(false);
+    } catch {
+      setMessage(
+        "백업 복원에 실패했습니다. 파일과 관리자 권한을 확인해 주세요.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
   const textField = (
     key: string,
     label: string,
@@ -3029,8 +3141,73 @@ function AdminPanel(props: AdminProps) {
                 >
                   콘텐츠 백업 <Download size={16} />
                 </button>
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={() => backupInputRef.current?.click()}
+                >
+                  백업 검사 <Upload size={16} />
+                </button>
+                <input
+                  ref={backupInputRef}
+                  className="admin-backup-upload-input"
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={inspectContentBackup}
+                />
               </div>
             </div>
+            {backupPreview && (
+              <section className="admin-backup-preview" aria-live="polite">
+                <div>
+                  <span>RESTORE PREVIEW</span>
+                  <h3>{backupPreview.fileName}</h3>
+                  <p>
+                    사이트 설정 2개와 콘텐츠 {backupPreview.itemCount}개를
+                    복원합니다. 같은 문서 ID는 덮어쓰고 백업에 없는 기존 문서는
+                    유지합니다. 신청자·계정 권한·활동 기록은 변경하지 않습니다.
+                  </p>
+                </div>
+                <div className="admin-backup-preview-actions">
+                  {backupRestoreConfirm ? (
+                    <>
+                      <button
+                        className="button danger"
+                        disabled={saving}
+                        onClick={restoreInspectedBackup}
+                      >
+                        병합 복원 확인
+                      </button>
+                      <button
+                        className="button button-ghost"
+                        disabled={saving}
+                        onClick={() => setBackupRestoreConfirm(false)}
+                      >
+                        취소
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="button button-primary"
+                      disabled={saving}
+                      onClick={() => setBackupRestoreConfirm(true)}
+                    >
+                      병합 복원 <Upload size={16} />
+                    </button>
+                  )}
+                  <button
+                    className="button button-ghost"
+                    disabled={saving}
+                    onClick={() => {
+                      setBackupPreview(null);
+                      setBackupRestoreConfirm(false);
+                    }}
+                  >
+                    파일 닫기
+                  </button>
+                </div>
+              </section>
+            )}
             <div className="admin-stat-grid">
               {dashboardStats.map((stat) => (
                 <button

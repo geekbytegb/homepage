@@ -12,6 +12,7 @@
     "format:check": "prettier --check src tests scripts vite.config.ts eslint.config.js",
     "test:rules": "node --test tests/firestore.rules.test.mjs",
     "test:rules:emulator": "npx firebase-tools@15.30.2 emulators:exec --project demo-geek-byte --only firestore \"npm run test:rules\"",
+    "test:backup": "node --test tests/content-backup.test.mjs",
     "grant-admin": "node scripts/grant-admin.mjs"
   },
   "dependencies": {
