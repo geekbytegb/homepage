@@ -92,19 +92,16 @@ const initialContactForm = {
   email: "",
   message: "",
 };
-function safeHttpUrl(value: string) {
+function safeHttpsUrl(value: string) {
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:"
-      ? url.href
-      : null;
+    return url.protocol === "https:" ? url.href : null;
   } catch {
     return null;
   }
 }
 function safeImageUrl(value: string) {
-  const url = safeHttpUrl(value);
-  return url?.startsWith("https://") ? url : null;
+  return safeHttpsUrl(value);
 }
 const pageMetadata: Record<string, { title: string; description: string }> = {
   "/": {
@@ -879,6 +876,26 @@ function App() {
     id?: string,
   ) {
     if (!db) return;
+    if (
+      name === "products" &&
+      ((entry.url && !safeHttpsUrl(String(entry.url))) ||
+        (entry.imageUrl && !safeImageUrl(String(entry.imageUrl))))
+    ) {
+      throw new Error("INVALID_PRODUCT_LINK");
+    }
+    if (
+      name === "intranetResources" &&
+      (!entry.url || !safeHttpsUrl(String(entry.url)))
+    ) {
+      throw new Error("INVALID_RESOURCE_URL");
+    }
+    if (
+      name === "intranetProjects" &&
+      entry.url &&
+      !safeHttpsUrl(String(entry.url))
+    ) {
+      throw new Error("INVALID_PROJECT_URL");
+    }
     const reference = id ? doc(db, name, id) : doc(collection(db, name));
     const batch = writeBatch(db);
     batch.set(reference, entry);
@@ -1312,9 +1329,9 @@ function App() {
                         </div>
                         <div className="product-meta">
                           <span>{item.category}</span>
-                          {safeHttpUrl(item.url) && (
+                          {safeHttpsUrl(item.url) && (
                             <a
-                              href={safeHttpUrl(item.url)!}
+                              href={safeHttpsUrl(item.url)!}
                               target="_blank"
                               rel="noopener noreferrer"
                               aria-label={`${item.name} 열기`}
@@ -1742,7 +1759,7 @@ function App() {
                       <div className="intranet-resource-list">
                         {visibleIntranetResources.length ? (
                           visibleIntranetResources.map((resource) => {
-                            const resourceUrl = safeHttpUrl(resource.url);
+                            const resourceUrl = safeHttpsUrl(resource.url);
                             return (
                               <article
                                 className="intranet-resource"
@@ -1778,7 +1795,7 @@ function App() {
                       <div className="intranet-project-list">
                         {visibleIntranetProjects.length ? (
                           visibleIntranetProjects.map((project) => {
-                            const projectUrl = safeHttpUrl(project.url);
+                            const projectUrl = safeHttpsUrl(project.url);
                             const progress = Math.max(
                               0,
                               Math.min(100, Number(project.progress) || 0),
@@ -2540,15 +2557,22 @@ function AdminPanel(props: AdminProps) {
         throw new Error("INVALID_IMAGE_URL");
       }
       if (
+        name === "products" &&
+        value.url &&
+        !safeHttpsUrl(String(value.url))
+      ) {
+        throw new Error("INVALID_PRODUCT_URL");
+      }
+      if (
         name === "intranetResources" &&
-        (!value.url || !safeImageUrl(String(value.url)))
+        (!value.url || !safeHttpsUrl(String(value.url)))
       ) {
         throw new Error("INVALID_RESOURCE_URL");
       }
       if (
         name === "intranetProjects" &&
         value.url &&
-        !safeImageUrl(String(value.url))
+        !safeHttpsUrl(String(value.url))
       ) {
         throw new Error("INVALID_PROJECT_URL");
       }
@@ -2571,14 +2595,17 @@ function AdminPanel(props: AdminProps) {
       setMessage(
         error instanceof Error && error.message === "INVALID_IMAGE_URL"
           ? "이미지는 https://로 시작하는 주소를 입력해 주세요."
-          : error instanceof Error && error.message === "INVALID_RESOURCE_URL"
-            ? "내부 자료는 https://로 시작하는 주소를 입력해 주세요."
-            : error instanceof Error && error.message === "INVALID_PROJECT_URL"
-              ? "프로젝트 링크는 https://로 시작하는 주소를 입력해 주세요."
+          : error instanceof Error && error.message === "INVALID_PRODUCT_URL"
+            ? "제품 외부 링크는 https://로 시작하는 주소를 입력해 주세요."
+            : error instanceof Error && error.message === "INVALID_RESOURCE_URL"
+              ? "내부 자료는 https://로 시작하는 주소를 입력해 주세요."
               : error instanceof Error &&
-                  error.message === "EVENT_DEADLINE_REQUIRED"
-                ? "신청 접수를 열려면 신청 마감일을 입력해 주세요."
-                : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
+                  error.message === "INVALID_PROJECT_URL"
+                ? "프로젝트 링크는 https://로 시작하는 주소를 입력해 주세요."
+                : error instanceof Error &&
+                    error.message === "EVENT_DEADLINE_REQUIRED"
+                  ? "신청 접수를 열려면 신청 마감일을 입력해 주세요."
+                  : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
       );
     } finally {
       setSaving(false);
