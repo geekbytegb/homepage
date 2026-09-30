@@ -1004,6 +1004,9 @@ select:focus-visible {
 .application-status.cancelled {
   color: #9ba3b3;
 }
+.application-status.deletion_requested {
+  color: #ffc77c;
+}
 .application-cancel,
 .application-cancel-confirm button {
   flex: none;
@@ -1026,6 +1029,20 @@ select:focus-visible {
 .application-cancel-confirm button:first-child {
   border-color: #7b4c55;
   color: #ffb5b8;
+}
+.application-delete-request {
+  border-color: #695c45;
+  color: #e9c992;
+}
+.application-delete-confirm button:first-child {
+  border-color: #86622d;
+  color: #ffd28b;
+}
+.application-delete-pending {
+  flex: none;
+  color: #e6bd79;
+  font-size: 10px;
+  font-weight: 700;
 }
 .event-card {
   background: #1b1f2b;
@@ -2046,6 +2063,14 @@ button.admin-dashboard-row:hover {
 .admin-pill.cancelled {
   background: #303541;
   color: #aeb6c7;
+}
+.admin-pill.deletion_requested {
+  background: rgba(170, 111, 36, 0.25);
+  color: #ffd08a;
+}
+.application-deletion-requested-at {
+  color: #e7bd79 !important;
+  font-weight: 700;
 }
 .admin-empty {
   border: 1px dashed #454c5f;

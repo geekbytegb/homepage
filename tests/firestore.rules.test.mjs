@@ -889,6 +889,18 @@ test("applicants can create only their own initial application once", async () =
   );
   await assertFails(
     updateDoc(doc(store, "applications", "student_event1"), {
+      status: "deletion_requested",
+      deletionRequestedAt: Timestamp.fromDate(new Date("2024-01-01T00:00:00Z")),
+    }),
+  );
+  await assertSucceeds(
+    updateDoc(doc(store, "applications", "student_event1"), {
+      status: "deletion_requested",
+      deletionRequestedAt: serverTimestamp(),
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(store, "applications", "student_event1"), {
       status: "new",
     }),
   );

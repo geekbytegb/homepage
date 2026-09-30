@@ -143,8 +143,15 @@ export type Application = {
   phone: string;
   motivation: string;
   consent: boolean;
-  status: "new" | "reviewing" | "accepted" | "declined" | "cancelled";
+  status:
+    | "new"
+    | "reviewing"
+    | "accepted"
+    | "declined"
+    | "cancelled"
+    | "deletion_requested";
   createdAt?: { toDate: () => Date };
+  deletionRequestedAt?: { toDate: () => Date };
 };
 export type Member = {
   id: string;

@@ -576,7 +576,13 @@ service cloud.firestore {
           && resource.data.userId == request.auth.uid
           && resource.data.status in ['new', 'reviewing']
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-          && request.resource.data.status == 'cancelled');
+          && request.resource.data.status == 'cancelled')
+        || (signedIn()
+          && resource.data.userId == request.auth.uid
+          && resource.data.status in ['accepted', 'declined', 'cancelled']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deletionRequestedAt'])
+          && request.resource.data.status == 'deletion_requested'
+          && request.resource.data.deletionRequestedAt == request.time);
       allow delete: if admin();
     }
     match /{document=**} { allow read, write: if false; }

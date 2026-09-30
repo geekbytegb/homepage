@@ -26,6 +26,7 @@ import {
   serverTimestamp,
   setDoc,
   Timestamp,
+  updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -236,7 +237,11 @@ const applicationStatusLabels: Record<Application["status"], string> = {
   accepted: "승인",
   declined: "미선정",
   cancelled: "신청 취소",
+  deletion_requested: "개인정보 삭제 요청",
 };
+function applicationMessageIsSuccess(message: string) {
+  return /^(신청이 접수|신청을 취소|삭제 요청이 접수)/.test(message);
+}
 const auditActionLabels: Record<string, string> = {
   "overview.save": "사이트 소개 수정",
   "privacy.save": "개인정보 안내 수정",
@@ -465,6 +470,9 @@ function App() {
   const [cancelApplicationId, setCancelApplicationId] = useState<string | null>(
     null,
   );
+  const [deleteRequestApplicationId, setDeleteRequestApplicationId] = useState<
+    string | null
+  >(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
   const [adminMessage, setAdminMessage] = useState("");
@@ -1013,6 +1021,28 @@ function App() {
     } catch {
       setApplicationMessage(
         "신청을 취소하지 못했습니다. 이미 처리된 신청인지 확인해 주세요.",
+      );
+    } finally {
+      setSavingApplication(false);
+    }
+  }
+
+  async function requestOwnApplicationDeletion(application: Application) {
+    if (!db || !user || application.userId !== user.uid) return;
+    setSavingApplication(true);
+    setApplicationMessage("");
+    try {
+      await updateDoc(doc(db, "applications", application.id), {
+        status: "deletion_requested",
+        deletionRequestedAt: serverTimestamp(),
+      });
+      setDeleteRequestApplicationId(null);
+      setApplicationMessage(
+        "삭제 요청이 접수되었습니다. 관리자가 확인 후 개인정보를 파기합니다.",
+      );
+    } catch {
+      setApplicationMessage(
+        "삭제 요청을 접수하지 못했습니다. 잠시 후 다시 시도해 주세요.",
       );
     } finally {
       setSavingApplication(false);
@@ -1763,8 +1793,64 @@ function App() {
                                 신청 취소
                               </button>
                             ))}
+                          {["accepted", "declined", "cancelled"].includes(
+                            application.status,
+                          ) &&
+                            (deleteRequestApplicationId === application.id ? (
+                              <span className="application-cancel-confirm application-delete-confirm">
+                                <button
+                                  disabled={savingApplication}
+                                  onClick={() =>
+                                    requestOwnApplicationDeletion(application)
+                                  }
+                                  type="button"
+                                >
+                                  삭제 요청 확정
+                                </button>
+                                <button
+                                  disabled={savingApplication}
+                                  onClick={() =>
+                                    setDeleteRequestApplicationId(null)
+                                  }
+                                  type="button"
+                                >
+                                  돌아가기
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                className="application-cancel application-delete-request"
+                                onClick={() =>
+                                  setDeleteRequestApplicationId(application.id)
+                                }
+                                type="button"
+                              >
+                                개인정보 삭제 요청
+                              </button>
+                            ))}
+                          {application.status === "deletion_requested" && (
+                            <span className="application-delete-pending">
+                              관리자 처리 대기
+                            </span>
+                          )}
                         </article>
                       ))}
+                      {applicationMessage && (
+                        <p
+                          className={`form-message ${
+                            applicationMessageIsSuccess(applicationMessage)
+                              ? "success"
+                              : "error"
+                          }`}
+                          role={
+                            applicationMessageIsSuccess(applicationMessage)
+                              ? "status"
+                              : "alert"
+                          }
+                        >
+                          {applicationMessage}
+                        </p>
+                      )}
                     </div>
                   </section>
                 )}
@@ -2495,7 +2581,8 @@ function App() {
                 <button
                   className="button button-primary"
                   disabled={
-                    savingApplication || applicationMessage.startsWith("신청이")
+                    savingApplication ||
+                    applicationMessageIsSuccess(applicationMessage)
                   }
                 >
                   {savingApplication ? "접수 중..." : "신청 제출하기"}{" "}
@@ -2503,9 +2590,9 @@ function App() {
                 </button>
                 {applicationMessage && (
                   <p
-                    className={`form-message ${applicationMessage.startsWith("신청이") ? "success" : "error"}`}
+                    className={`form-message ${applicationMessageIsSuccess(applicationMessage) ? "success" : "error"}`}
                     role={
-                      applicationMessage.startsWith("신청이")
+                      applicationMessageIsSuccess(applicationMessage)
                         ? "status"
                         : "alert"
                     }
@@ -2824,8 +2911,10 @@ function AdminPanel(props: AdminProps) {
       })
       .sort(
         (a, b) =>
+          Number(b.status === "deletion_requested") -
+            Number(a.status === "deletion_requested") ||
           (timestampDate(b.createdAt)?.getTime() || 0) -
-          (timestampDate(a.createdAt)?.getTime() || 0),
+            (timestampDate(a.createdAt)?.getTime() || 0),
       );
   }, [applicationQuery, applicationStatus, applications, events]);
   const auditActions = useMemo(
@@ -2847,6 +2936,9 @@ function AdminPanel(props: AdminProps) {
   }, [auditAction, auditLogs, auditQuery]);
   const pendingApplications = applications.filter(
     (item) => item.status === "new" || item.status === "reviewing",
+  ).length;
+  const deletionRequestCount = applications.filter(
+    (item) => item.status === "deletion_requested",
   ).length;
   const expiredApplicationCount = applications.filter((item) => {
     const deadline = applicationRetentionDeadline(item, privacy.retentionDays);
@@ -2913,6 +3005,13 @@ function AdminPanel(props: AdminProps) {
       detail: `전체 신청 ${applications.length}건`,
       target: "applications",
       urgent: pendingApplications > 0,
+    },
+    {
+      label: "개인정보 삭제 요청",
+      value: deletionRequestCount,
+      detail: "확인 후 감사 기록과 함께 파기",
+      target: "applications",
+      urgent: deletionRequestCount > 0,
     },
     {
       label: "모집 중 행사",
@@ -3180,6 +3279,7 @@ function AdminPanel(props: AdminProps) {
       "행사",
       "신청 동기",
       "접수 일시",
+      "삭제 요청 일시",
     ];
     const rows = filteredApplications.map((item) => [
       applicationStatusLabels[item.status],
@@ -3189,6 +3289,7 @@ function AdminPanel(props: AdminProps) {
       events.find((event) => event.id === item.eventId)?.title || item.eventId,
       item.motivation,
       timestampDate(item.createdAt)?.toLocaleString("ko-KR") || "",
+      timestampDate(item.deletionRequestedAt)?.toLocaleString("ko-KR") || "",
     ]);
     const csv = [headings, ...rows]
       .map((row) => row.map(csvCell).join(","))
@@ -4091,6 +4192,7 @@ function AdminPanel(props: AdminProps) {
                   <option value="accepted">승인</option>
                   <option value="declined">미선정</option>
                   <option value="cancelled">신청 취소</option>
+                  <option value="deletion_requested">개인정보 삭제 요청</option>
                 </select>
               </label>
               <button
@@ -4157,11 +4259,21 @@ function AdminPanel(props: AdminProps) {
                         )?.getTime() || Infinity) <= Date.now() &&
                           " · 기한 경과"}
                       </p>
+                      {item.status === "deletion_requested" && (
+                        <p className="application-deletion-requested-at">
+                          삭제 요청:{" "}
+                          {timestampDate(
+                            item.deletionRequestedAt,
+                          )?.toLocaleString("ko-KR") || "확인 중"}
+                        </p>
+                      )}
                     </div>
                     <div className="application-actions">
                       <select
                         value={item.status}
-                        disabled={saving}
+                        disabled={
+                          saving || item.status === "deletion_requested"
+                        }
                         onChange={async (e) => {
                           setSaving(true);
                           try {
@@ -4182,6 +4294,11 @@ function AdminPanel(props: AdminProps) {
                         <option value="accepted">승인</option>
                         <option value="declined">미선정</option>
                         <option value="cancelled">신청 취소</option>
+                        {item.status === "deletion_requested" && (
+                          <option value="deletion_requested">
+                            개인정보 삭제 요청
+                          </option>
+                        )}
                       </select>
                       {deletingId === `application:${item.id}` ? (
                         <span className="admin-delete-confirm">
