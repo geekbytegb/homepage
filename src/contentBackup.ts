@@ -2,7 +2,7 @@ import { Timestamp } from "firebase/firestore";
 
 export type BackupEntry = Record<string, unknown> & { id: string };
 export type ContentBackupPayload = {
-  schemaVersion: 3;
+  schemaVersion: 4;
   exportedAt: string;
   site: {
     overview: Record<string, unknown>;
@@ -148,6 +148,12 @@ function validateBackupPayload(payload: ContentBackupPayload) {
   ["operator", "contact", "retention", "body"].forEach((key) =>
     requireBackupField(payload.site.privacy, key, "string", "개인정보 안내"),
   );
+  requireBackupField(
+    payload.site.privacy,
+    "retentionDays",
+    "number",
+    "개인정보 안내",
+  );
   const validateEntries = (
     entries: BackupEntry[],
     label: string,
@@ -261,8 +267,9 @@ function validateBackupPayload(payload: ContentBackupPayload) {
   validateRecordConstraints(
     payload.site.privacy,
     "개인정보 안내",
-    ["published", "operator", "contact", "retention", "body"],
+    ["published", "operator", "contact", "retention", "retentionDays", "body"],
     { operator: 100, contact: 254, retention: 200, body: 20000 },
+    { numberRanges: { retentionDays: [1, 3650] } },
   );
   if (
     payload.site.privacy.published === true &&
@@ -448,10 +455,7 @@ export function parseContentBackup(text: string): ContentBackupPayload {
   } catch {
     throw new Error("JSON 파일을 읽을 수 없습니다.");
   }
-  if (
-    !isRecord(value) ||
-    (value.schemaVersion !== 2 && value.schemaVersion !== 3)
-  )
+  if (!isRecord(value) || ![2, 3, 4].includes(Number(value.schemaVersion)))
     throw new Error("지원하는 Geek Byte 백업 형식이 아닙니다.");
   if (
     typeof value.exportedAt !== "string" ||
@@ -470,11 +474,17 @@ export function parseContentBackup(text: string): ContentBackupPayload {
     throw new Error("백업의 필수 영역이 누락되었습니다.");
   }
   const payload: ContentBackupPayload = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     exportedAt: value.exportedAt,
     site: {
       overview: value.site.overview,
-      privacy: value.site.privacy,
+      privacy: {
+        ...value.site.privacy,
+        retentionDays:
+          typeof value.site.privacy.retentionDays === "number"
+            ? value.site.privacy.retentionDays
+            : 365,
+      },
     },
     publicContent: {
       history: backupEntries(value.publicContent.history, "연혁"),
@@ -489,11 +499,11 @@ export function parseContentBackup(text: string): ContentBackupPayload {
       meetings: backupEntries(value.intranetContent.meetings, "회의 기록"),
       profiles: backupEntries(value.intranetContent.profiles, "구성원 프로필"),
       events:
-        value.schemaVersion === 3
+        Number(value.schemaVersion) >= 3
           ? backupEntries(value.intranetContent.events, "내부 행사")
           : [],
       channels:
-        value.schemaVersion === 3
+        Number(value.schemaVersion) >= 3
           ? backupEntries(value.intranetContent.channels, "메신저 채널")
           : [],
     },

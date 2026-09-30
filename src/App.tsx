@@ -91,6 +91,9 @@ function privacyNoticeReady(privacy: Privacy) {
     privacy.operator.trim() &&
     privacy.contact.trim() &&
     privacy.retention.trim() &&
+    Number.isInteger(privacy.retentionDays) &&
+    privacy.retentionDays >= 1 &&
+    privacy.retentionDays <= 3650 &&
     privacy.body.trim().length >= MIN_PRIVACY_BODY_LENGTH,
   );
 }
@@ -136,6 +139,16 @@ function contentFieldLimit(collectionName: string, fieldName: string) {
   if (collectionName === "chatChannels" && fieldName === "description")
     return 1000;
   return contentFieldLimits[fieldName];
+}
+
+function applicationRetentionDeadline(
+  application: Application,
+  retentionDays: number,
+) {
+  const createdAt = timestampDate(application.createdAt);
+  if (!createdAt || !Number.isInteger(retentionDays) || retentionDays < 1)
+    return null;
+  return new Date(createdAt.getTime() + retentionDays * 24 * 60 * 60 * 1000);
 }
 
 type CollectionName =
@@ -2572,6 +2585,10 @@ function App() {
                 <p>
                   <strong>보유 기간</strong> {privacy.retention}
                 </p>
+                <p>
+                  <strong>관리 기준</strong> 접수일부터 최대{" "}
+                  {privacy.retentionDays}일
+                </p>
                 <div>{privacy.body}</div>
               </div>
             ) : (
@@ -2831,6 +2848,10 @@ function AdminPanel(props: AdminProps) {
   const pendingApplications = applications.filter(
     (item) => item.status === "new" || item.status === "reviewing",
   ).length;
+  const expiredApplicationCount = applications.filter((item) => {
+    const deadline = applicationRetentionDeadline(item, privacy.retentionDays);
+    return deadline ? deadline.getTime() <= Date.now() : false;
+  }).length;
   const openEvents = events.filter(
     (item) => item.published && registrationAvailable(item),
   ).length;
@@ -3031,6 +3052,14 @@ function AdminPanel(props: AdminProps) {
   async function submitPrivacy(event: FormEvent) {
     event.preventDefault();
     if (
+      !Number.isInteger(draftPrivacy.retentionDays) ||
+      draftPrivacy.retentionDays < 1 ||
+      draftPrivacy.retentionDays > 3650
+    ) {
+      setMessage("파기 관리 기준은 1일 이상 3650일 이하로 입력해 주세요.");
+      return;
+    }
+    if (
       draftPrivacy.published &&
       draftPrivacy.body.trim().length < MIN_PRIVACY_BODY_LENGTH
     ) {
@@ -3196,7 +3225,7 @@ function AdminPanel(props: AdminProps) {
   }
   function exportContentBackup() {
     const backup = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       exportedAt: new Date().toISOString(),
       site: { overview, privacy },
       publicContent: { history, notices, products, events },
@@ -3679,6 +3708,22 @@ function AdminPanel(props: AdminProps) {
               />
             </label>
             <label>
+              파기 관리 기준 (접수일부터 일수)
+              <input
+                required
+                type="number"
+                min={1}
+                max={3650}
+                value={draftPrivacy.retentionDays}
+                onChange={(e) =>
+                  setDraftPrivacy({
+                    ...draftPrivacy,
+                    retentionDays: Number(e.target.value),
+                  })
+                }
+              />
+            </label>
+            <label>
               개인정보 처리방침 전문
               <textarea
                 required={draftPrivacy.published}
@@ -4060,10 +4105,26 @@ function AdminPanel(props: AdminProps) {
               전체 {applications.length}건 중 {filteredApplications.length}건
               표시
             </p>
+            {expiredApplicationCount > 0 && (
+              <p className="form-message error" role="alert">
+                보유 기한이 지난 신청 {expiredApplicationCount}건이 있습니다.
+                업무상 보존 의무를 확인한 뒤 삭제해 주세요.
+              </p>
+            )}
             {applications.length ? (
               filteredApplications.length ? (
                 filteredApplications.map((item) => (
-                  <article className="application-record" key={item.id}>
+                  <article
+                    className={`application-record${
+                      (applicationRetentionDeadline(
+                        item,
+                        privacy.retentionDays,
+                      )?.getTime() || Infinity) <= Date.now()
+                        ? " retention-expired"
+                        : ""
+                    }`}
+                    key={item.id}
+                  >
                     <div>
                       <span className={`admin-pill ${item.status}`}>
                         {applicationStatusLabels[item.status]}
@@ -4078,6 +4139,24 @@ function AdminPanel(props: AdminProps) {
                       </p>
                       <p>연락처: {item.phone}</p>
                       <p>신청 동기: {item.motivation || "없음"}</p>
+                      <p>
+                        접수:{" "}
+                        {timestampDate(item.createdAt)?.toLocaleString(
+                          "ko-KR",
+                        ) || "확인 중"}
+                      </p>
+                      <p>
+                        파기 점검일:{" "}
+                        {applicationRetentionDeadline(
+                          item,
+                          privacy.retentionDays,
+                        )?.toLocaleDateString("ko-KR") || "확인 중"}
+                        {(applicationRetentionDeadline(
+                          item,
+                          privacy.retentionDays,
+                        )?.getTime() || Infinity) <= Date.now() &&
+                          " · 기한 경과"}
+                      </p>
                     </div>
                     <div className="application-actions">
                       <select

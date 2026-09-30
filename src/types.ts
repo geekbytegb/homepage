@@ -11,6 +11,7 @@ export type Privacy = {
   operator: string;
   contact: string;
   retention: string;
+  retentionDays: number;
   body: string;
 };
 
@@ -19,6 +20,7 @@ export const defaultPrivacy: Privacy = {
   operator: "",
   contact: "",
   retention: "",
+  retentionDays: 365,
   body: "",
 };
 

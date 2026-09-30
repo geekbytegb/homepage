@@ -71,6 +71,9 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/site/privacy).data.contact.size() > 0
         && get(/databases/$(database)/documents/site/privacy).data.retention is string
         && get(/databases/$(database)/documents/site/privacy).data.retention.size() > 0
+        && get(/databases/$(database)/documents/site/privacy).data.retentionDays is int
+        && get(/databases/$(database)/documents/site/privacy).data.retentionDays >= 1
+        && get(/databases/$(database)/documents/site/privacy).data.retentionDays <= 3650
         && get(/databases/$(database)/documents/site/privacy).data.body is string
         && get(/databases/$(database)/documents/site/privacy).data.body.size() >= 80;
     }
@@ -89,8 +92,8 @@ service cloud.firestore {
         && request.resource.data.email.size() <= 254;
     }
     function validPrivacyDocument() {
-      return request.resource.data.keys().hasOnly(['published', 'operator', 'contact', 'retention', 'body'])
-        && request.resource.data.keys().hasAll(['published', 'operator', 'contact', 'retention', 'body'])
+      return request.resource.data.keys().hasOnly(['published', 'operator', 'contact', 'retention', 'retentionDays', 'body'])
+        && request.resource.data.keys().hasAll(['published', 'operator', 'contact', 'retention', 'retentionDays', 'body'])
         && request.resource.data.published is bool
         && request.resource.data.operator is string
         && request.resource.data.operator.size() <= 100
@@ -98,6 +101,9 @@ service cloud.firestore {
         && request.resource.data.contact.size() <= 254
         && request.resource.data.retention is string
         && request.resource.data.retention.size() <= 200
+        && request.resource.data.retentionDays is int
+        && request.resource.data.retentionDays >= 1
+        && request.resource.data.retentionDays <= 3650
         && request.resource.data.body is string
         && request.resource.data.body.size() <= 20000
         && (request.resource.data.published == false

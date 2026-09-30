@@ -62,6 +62,7 @@ before(async () => {
       operator: "Geek Byte",
       contact: "contact@example.com",
       retention: "1 year",
+      retentionDays: 365,
       body: "Geek Byte 개인정보 처리방침은 수집 항목, 이용 목적, 보유 기간, 파기 절차, 정보주체의 권리와 문의 방법을 구체적으로 안내합니다. 자세한 내용입니다.",
     });
     await setDoc(doc(store, "intranetNotices", "internal"), {
@@ -330,6 +331,7 @@ test("site settings accept only bounded overview and complete published privacy 
       operator: "Geek Byte",
       contact: "contact@example.com",
       retention: "1 year",
+      retentionDays: 365,
       body: "임시",
     }),
   );
@@ -339,6 +341,7 @@ test("site settings accept only bounded overview and complete published privacy 
       operator: "Geek Byte",
       contact: "contact@example.com",
       retention: "1 year",
+      retentionDays: 365,
       body: "임시",
     }),
   );
@@ -348,6 +351,7 @@ test("site settings accept only bounded overview and complete published privacy 
       operator: "Geek Byte",
       contact: "contact@example.com",
       retention: "1 year",
+      retentionDays: 365,
       body: "Geek Byte 개인정보 처리방침은 수집 항목, 이용 목적, 보유 기간, 파기 절차, 정보주체의 권리와 문의 방법을 구체적으로 안내합니다. 자세한 내용입니다.",
     }),
   );
@@ -865,6 +869,7 @@ test("applications are blocked when the privacy notice is unpublished or incompl
       operator: "Geek Byte",
       contact: "contact@example.com",
       retention: "1 year",
+      retentionDays: 365,
       body: "Geek Byte 개인정보 처리방침은 수집 항목, 이용 목적, 보유 기간, 파기 절차, 정보주체의 권리와 문의 방법을 구체적으로 안내합니다. 자세한 내용입니다.",
     });
   });
@@ -890,6 +895,7 @@ test("applications are blocked when the privacy notice is unpublished or incompl
       operator: "Geek Byte",
       contact: "contact@example.com",
       retention: "1 year",
+      retentionDays: 365,
       body: "임시",
     });
   });

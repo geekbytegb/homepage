@@ -9,7 +9,7 @@ import {
 
 function validBackup() {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     exportedAt: "2026-09-30T00:00:00.000Z",
     site: {
       overview: {
@@ -24,6 +24,7 @@ function validBackup() {
         operator: "",
         contact: "",
         retention: "",
+        retentionDays: 365,
         body: "",
       },
     },
@@ -70,9 +71,18 @@ test("schema version 2 backups migrate with empty event and channel lists", () =
   delete backup.intranetContent.events;
   delete backup.intranetContent.channels;
   const parsed = parseContentBackup(JSON.stringify(backup));
-  assert.equal(parsed.schemaVersion, 3);
+  assert.equal(parsed.schemaVersion, 4);
   assert.deepEqual(parsed.intranetContent.events, []);
   assert.deepEqual(parsed.intranetContent.channels, []);
+});
+
+test("schema version 3 backups receive the default retention period", () => {
+  const backup = validBackup();
+  backup.schemaVersion = 3;
+  delete backup.site.privacy.retentionDays;
+  const parsed = parseContentBackup(JSON.stringify(backup));
+  assert.equal(parsed.schemaVersion, 4);
+  assert.equal(parsed.site.privacy.retentionDays, 365);
 });
 
 test("backup parser rejects duplicate and unsafe document ids", () => {
@@ -145,6 +155,7 @@ test("backup parser rejects an incomplete published privacy notice", () => {
     operator: "Geek Byte",
     contact: "contact@example.com",
     retention: "1 year",
+    retentionDays: 365,
     body: "임시",
   };
   assert.throws(
