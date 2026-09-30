@@ -57,11 +57,13 @@ export function IntranetChat({
   user,
   isAdmin,
   onManageChannels,
+  embedded = false,
 }: {
   channels: ChatChannel[];
   user: User;
   isAdmin: boolean;
   onManageChannels: () => void;
+  embedded?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -152,7 +154,9 @@ export function IntranetChat({
   }
 
   return (
-    <section className="intranet-panel intranet-chat-panel">
+    <section
+      className={`intranet-panel intranet-chat-panel ${embedded ? "embedded" : ""}`}
+    >
       <div className="intranet-panel-heading chat-panel-heading">
         <span>TEAM MESSENGER</span>
         <div>

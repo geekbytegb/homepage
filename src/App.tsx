@@ -51,9 +51,8 @@ import {
 } from "lucide-react";
 import { appCheckConfigured, auth, configured, db } from "./firebase";
 import { AdminDirectMessages } from "./AdminDirectMessages";
-import { IntranetChat } from "./IntranetChat";
-import { IntranetDirectMessages } from "./IntranetDirectMessages";
 import { IntranetEvents } from "./IntranetEvents";
+import { IntranetMessenger } from "./IntranetMessenger";
 import { buildLaunchReadiness } from "./readiness";
 import {
   contentBackupCount,
@@ -1944,7 +1943,7 @@ function App() {
                       events={visibleIntranetEvents}
                       user={user}
                     />
-                    <IntranetChat
+                    <IntranetMessenger
                       channels={visibleChatChannels}
                       user={user}
                       isAdmin={isAdmin}
@@ -1953,7 +1952,6 @@ function App() {
                         setActiveAdmin(true);
                       }}
                     />
-                    <IntranetDirectMessages user={user} />
                     <section className="intranet-panel intranet-directory-panel">
                       <div className="intranet-panel-heading">
                         <span>TEAM DIRECTORY</span>

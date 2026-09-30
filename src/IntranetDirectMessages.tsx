@@ -37,7 +37,13 @@ function messageTime(message: DirectMessage) {
   }).format(date);
 }
 
-export function IntranetDirectMessages({ user }: { user: User }) {
+export function IntranetDirectMessages({
+  user,
+  embedded = false,
+}: {
+  user: User;
+  embedded?: boolean;
+}) {
   const [identities, setIdentities] = useState<MemberIdentity[]>([]);
   const [conversations, setConversations] = useState<DirectConversation[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -195,7 +201,9 @@ export function IntranetDirectMessages({ user }: { user: User }) {
   }
 
   return (
-    <section className="intranet-panel intranet-dm-panel">
+    <section
+      className={`intranet-panel intranet-dm-panel ${embedded ? "embedded" : ""}`}
+    >
       <div className="intranet-panel-heading">
         <span>DIRECT MESSAGES</span>
         <strong>{conversations.length}</strong>
