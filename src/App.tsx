@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   onAuthStateChanged,
@@ -330,6 +330,7 @@ function App() {
   const [loginNotice, setLoginNotice] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const firstPageRender = useRef(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [applicationForm, setApplicationForm] = useState(initialForm);
   const [contactForm, setContactForm] = useState(initialContactForm);
@@ -649,6 +650,8 @@ function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
     setMenuOpen(false);
+    if (firstPageRender.current) firstPageRender.current = false;
+    else document.getElementById("main-content")?.focus();
     const metadata = pageMetadata[page];
     const canonicalUrl =
       page === "/404"
@@ -1051,6 +1054,9 @@ function App() {
   return (
     <>
       <div className="site-shell">
+        <a className="skip-link" href="#main-content">
+          본문으로 바로가기
+        </a>
         <header className="site-header">
           <Link className="brand" to="/" aria-label="Geek Byte 홈">
             <span className="brand-logo">
@@ -1109,7 +1115,7 @@ function App() {
           </div>
         </header>
 
-        <main id="top">
+        <main id="main-content" tabIndex={-1}>
           {contentError && (
             <p className="content-alert" role="alert">
               {contentError} 잠시 후 새로고침해 주세요.
@@ -2388,6 +2394,7 @@ function AdminPanel(props: AdminProps) {
     setMessage,
   } = props;
   const [draftOverview, setDraftOverview] = useState(overview);
+  const adminMainRef = useRef<HTMLElement>(null);
   const [draftPrivacy, setDraftPrivacy] = useState(privacy);
   useEffect(() => {
     setDraftOverview(overview);
@@ -2395,6 +2402,9 @@ function AdminPanel(props: AdminProps) {
   useEffect(() => {
     setDraftPrivacy(privacy);
   }, [privacy]);
+  useEffect(() => {
+    adminMainRef.current?.focus();
+  }, []);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [entryDraft, setEntryDraft] = useState<Record<string, unknown>>(
     emptyEditors.history,
@@ -2851,7 +2861,7 @@ function AdminPanel(props: AdminProps) {
           ← 사이트로 돌아가기
         </button>
       </aside>
-      <main className="admin-main">
+      <main className="admin-main" ref={adminMainRef} tabIndex={-1}>
         <div className="admin-top">
           <div>
             <p className="section-kicker">

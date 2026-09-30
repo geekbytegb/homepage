@@ -101,6 +101,26 @@ select:focus-visible {
 .site-shell {
   overflow: hidden;
 }
+.skip-link {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  padding: 11px 15px;
+  background: #eef1ff;
+  color: #111522;
+  font-size: 12px;
+  font-weight: 800;
+  transform: translateY(-160%);
+  transition: transform 140ms ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+#main-content:focus,
+.admin-main:focus {
+  outline: none;
+}
 .section-wrap {
   width: min(1320px, calc(100% - 112px));
   margin: 0 auto;
