@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { User } from "firebase/auth";
 import { Hash, MessageCircle, Settings2, UserRound } from "lucide-react";
 import { IntranetChat } from "./IntranetChat";
@@ -6,23 +6,31 @@ import { IntranetDirectMessages } from "./IntranetDirectMessages";
 import type { ChatChannel } from "./types";
 
 export function IntranetMessenger({
+  active = true,
   channels,
   user,
   displayName,
   isAdmin,
   onManageChannels,
+  onUnreadCountChange,
 }: {
+  active?: boolean;
   channels: ChatChannel[];
   user: User;
   displayName: string;
   isAdmin: boolean;
   onManageChannels: () => void;
+  onUnreadCountChange?: (count: number) => void;
 }) {
   const [tab, setTab] = useState<"group" | "direct">("group");
   const [groupUnread, setGroupUnread] = useState(0);
   const [directUnread, setDirectUnread] = useState(0);
   const groupTabRef = useRef<HTMLButtonElement>(null);
   const directTabRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    onUnreadCountChange?.(groupUnread + directUnread);
+  }, [directUnread, groupUnread, onUnreadCountChange]);
 
   function selectTab(nextTab: "group" | "direct", moveFocus = false) {
     setTab(nextTab);
@@ -102,7 +110,7 @@ export function IntranetMessenger({
         role="tabpanel"
       >
         <IntranetChat
-          active={tab === "group"}
+          active={active && tab === "group"}
           channels={channels}
           user={user}
           displayName={displayName}
@@ -120,7 +128,7 @@ export function IntranetMessenger({
         role="tabpanel"
       >
         <IntranetDirectMessages
-          active={tab === "direct"}
+          active={active && tab === "direct"}
           user={user}
           displayName={displayName}
           onUnreadCountChange={setDirectUnread}

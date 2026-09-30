@@ -193,6 +193,13 @@ const initialContactForm = {
   email: "",
   message: "",
 };
+const intranetWorkspaceTabs = [
+  { id: "work", label: "업무 홈" },
+  { id: "messenger", label: "메신저" },
+  { id: "knowledge", label: "자료·회의" },
+  { id: "team", label: "구성원" },
+] as const;
+type IntranetWorkspaceTab = (typeof intranetWorkspaceTabs)[number]["id"];
 function safeHttpsUrl(value: string) {
   try {
     const url = new URL(value);
@@ -516,6 +523,8 @@ function App() {
     Record<string, string | boolean>
   >({});
   const [contactForm, setContactForm] = useState(initialContactForm);
+  const [intranetTab, setIntranetTab] = useState<IntranetWorkspaceTab>("work");
+  const [intranetUnread, setIntranetUnread] = useState(0);
   const [applicationMessage, setApplicationMessage] = useState("");
   const [savingApplication, setSavingApplication] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -2215,225 +2224,280 @@ function App() {
                       </button>
                     )}
                   </div>
+                  <nav
+                    aria-label="인트라넷 영역"
+                    className="intranet-workspace-tabs"
+                  >
+                    {intranetWorkspaceTabs.map((item) => {
+                      const count =
+                        item.id === "work"
+                          ? visibleIntranetEvents.length +
+                            visibleIntranetNotices.length +
+                            visibleIntranetProjects.length
+                          : item.id === "messenger"
+                            ? intranetUnread
+                            : item.id === "knowledge"
+                              ? visibleIntranetResources.length +
+                                visibleIntranetMeetings.length
+                              : visibleIntranetProfiles.length;
+                      return (
+                        <button
+                          aria-pressed={intranetTab === item.id}
+                          className={intranetTab === item.id ? "selected" : ""}
+                          key={item.id}
+                          onClick={() => setIntranetTab(item.id)}
+                          type="button"
+                        >
+                          {item.label}
+                          {(item.id !== "messenger" || count > 0) && (
+                            <span>{count}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </nav>
                   <div className="intranet-grid">
-                    <IntranetEvents
-                      events={visibleIntranetEvents}
-                      user={user}
-                      displayName={
-                        memberDisplayName ||
-                        user.displayName ||
-                        user.email ||
-                        "구성원"
-                      }
-                    />
-                    <IntranetMessenger
-                      channels={visibleChatChannels}
-                      user={user}
-                      displayName={
-                        memberDisplayName ||
-                        user.displayName ||
-                        user.email ||
-                        "구성원"
-                      }
-                      isAdmin={isAdmin}
-                      onManageChannels={() => {
-                        setAdminTab("chatChannels");
-                        setActiveAdmin(true);
-                      }}
-                    />
-                    <section className="intranet-panel intranet-directory-panel">
-                      <div className="intranet-panel-heading">
-                        <span>TEAM DIRECTORY</span>
-                        <strong>{visibleIntranetProfiles.length}</strong>
-                      </div>
-                      <div className="intranet-profile-list">
-                        {visibleIntranetProfiles.length ? (
-                          visibleIntranetProfiles.map((profile) => (
-                            <article
-                              className="intranet-profile"
-                              key={profile.id}
-                            >
-                              <span
-                                className="intranet-profile-avatar"
-                                aria-hidden="true"
-                              >
-                                {profile.displayName.trim().slice(0, 1) || "G"}
-                              </span>
-                              <div>
-                                <span>{profile.role || "TEAM MEMBER"}</span>
-                                <h2>{profile.displayName}</h2>
-                                {profile.bio && <p>{profile.bio}</p>}
-                                {profile.skills && (
-                                  <small>{profile.skills}</small>
-                                )}
-                              </div>
-                            </article>
-                          ))
-                        ) : (
-                          <p className="intranet-empty">
-                            공개된 구성원 프로필이 없습니다.
-                          </p>
-                        )}
-                      </div>
-                    </section>
-                    <section className="intranet-panel">
-                      <div className="intranet-panel-heading">
-                        <span>INTERNAL NOTICE</span>
-                        <strong>{visibleIntranetNotices.length}</strong>
-                      </div>
-                      {visibleIntranetNotices.length ? (
-                        visibleIntranetNotices.map((notice) => (
-                          <article className="intranet-notice" key={notice.id}>
-                            <time dateTime={notice.date}>{notice.date}</time>
-                            <h2>
-                              {notice.pinned && <span>필독</span>}
-                              {notice.title}
-                            </h2>
-                            <p>{notice.body}</p>
-                          </article>
-                        ))
-                      ) : (
-                        <p className="intranet-empty">
-                          등록된 내부 공지가 없습니다.
-                        </p>
-                      )}
-                    </section>
-                    <section className="intranet-panel">
-                      <div className="intranet-panel-heading">
-                        <span>TEAM RESOURCES</span>
-                        <strong>{visibleIntranetResources.length}</strong>
-                      </div>
-                      <div className="intranet-resource-list">
-                        {visibleIntranetResources.length ? (
-                          visibleIntranetResources.map((resource) => {
-                            const resourceUrl = safeHttpsUrl(resource.url);
-                            return (
+                    {intranetTab === "work" && (
+                      <IntranetEvents
+                        events={visibleIntranetEvents}
+                        user={user}
+                        displayName={
+                          memberDisplayName ||
+                          user.displayName ||
+                          user.email ||
+                          "구성원"
+                        }
+                      />
+                    )}
+                    <div
+                      className="intranet-messenger-slot"
+                      hidden={intranetTab !== "messenger"}
+                    >
+                      <IntranetMessenger
+                        active={intranetTab === "messenger"}
+                        channels={visibleChatChannels}
+                        user={user}
+                        displayName={
+                          memberDisplayName ||
+                          user.displayName ||
+                          user.email ||
+                          "구성원"
+                        }
+                        isAdmin={isAdmin}
+                        onManageChannels={() => {
+                          setAdminTab("chatChannels");
+                          setActiveAdmin(true);
+                        }}
+                        onUnreadCountChange={setIntranetUnread}
+                      />
+                    </div>
+                    {intranetTab === "team" && (
+                      <section className="intranet-panel intranet-directory-panel">
+                        <div className="intranet-panel-heading">
+                          <span>TEAM DIRECTORY</span>
+                          <strong>{visibleIntranetProfiles.length}</strong>
+                        </div>
+                        <div className="intranet-profile-list">
+                          {visibleIntranetProfiles.length ? (
+                            visibleIntranetProfiles.map((profile) => (
                               <article
-                                className="intranet-resource"
-                                key={resource.id}
+                                className="intranet-profile"
+                                key={profile.id}
                               >
-                                <span>{resource.category}</span>
-                                <h2>{resource.title}</h2>
-                                <p>{resource.description}</p>
-                                {resourceUrl && (
-                                  <a
-                                    href={resourceUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    자료 열기 <ArrowUpRight size={16} />
-                                  </a>
-                                )}
-                              </article>
-                            );
-                          })
-                        ) : (
-                          <p className="intranet-empty">
-                            등록된 팀 자료가 없습니다.
-                          </p>
-                        )}
-                      </div>
-                    </section>
-                    <section className="intranet-panel intranet-project-panel">
-                      <div className="intranet-panel-heading">
-                        <span>PROJECT STATUS</span>
-                        <strong>{visibleIntranetProjects.length}</strong>
-                      </div>
-                      <div className="intranet-project-list">
-                        {visibleIntranetProjects.length ? (
-                          visibleIntranetProjects.map((project) => {
-                            const projectUrl = safeHttpsUrl(project.url);
-                            const progress = Math.max(
-                              0,
-                              Math.min(100, Number(project.progress) || 0),
-                            );
-                            const statusLabels = {
-                              planning: "기획",
-                              active: "진행 중",
-                              blocked: "확인 필요",
-                              done: "완료",
-                            };
-                            return (
-                              <article
-                                className="intranet-project"
-                                key={project.id}
-                              >
-                                <div className="intranet-project-top">
-                                  <span
-                                    className={`project-status ${project.status}`}
-                                  >
-                                    {statusLabels[project.status]}
-                                  </span>
-                                  <span>{progress}%</span>
-                                </div>
-                                <h2>{project.title}</h2>
-                                <p>{project.summary}</p>
-                                <div
-                                  className="project-progress"
-                                  aria-label={`진행률 ${progress}%`}
+                                <span
+                                  className="intranet-profile-avatar"
+                                  aria-hidden="true"
                                 >
-                                  <span style={{ width: `${progress}%` }} />
-                                </div>
-                                <div className="intranet-project-footer">
-                                  <span>담당 {project.owner || "미정"}</span>
-                                  {projectUrl && (
-                                    <a
-                                      href={projectUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >
-                                      프로젝트 열기 <ArrowUpRight size={15} />
-                                    </a>
+                                  {profile.displayName.trim().slice(0, 1) ||
+                                    "G"}
+                                </span>
+                                <div>
+                                  <span>{profile.role || "TEAM MEMBER"}</span>
+                                  <h2>{profile.displayName}</h2>
+                                  {profile.bio && <p>{profile.bio}</p>}
+                                  {profile.skills && (
+                                    <small>{profile.skills}</small>
                                   )}
                                 </div>
                               </article>
-                            );
-                          })
-                        ) : (
-                          <p className="intranet-empty">
-                            등록된 프로젝트가 없습니다.
-                          </p>
-                        )}
-                      </div>
-                    </section>
-                    <section className="intranet-panel intranet-meeting-panel">
-                      <div className="intranet-panel-heading">
-                        <span>MEETING NOTES</span>
-                        <strong>{visibleIntranetMeetings.length}</strong>
-                      </div>
-                      <div className="intranet-meeting-list">
-                        {visibleIntranetMeetings.length ? (
-                          visibleIntranetMeetings.map((meeting) => (
+                            ))
+                          ) : (
+                            <p className="intranet-empty">
+                              공개된 구성원 프로필이 없습니다.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    )}
+                    {intranetTab === "work" && (
+                      <section className="intranet-panel intranet-wide-panel">
+                        <div className="intranet-panel-heading">
+                          <span>INTERNAL NOTICE</span>
+                          <strong>{visibleIntranetNotices.length}</strong>
+                        </div>
+                        {visibleIntranetNotices.length ? (
+                          visibleIntranetNotices.map((notice) => (
                             <article
-                              className="intranet-meeting"
-                              key={meeting.id}
+                              className="intranet-notice"
+                              key={notice.id}
                             >
-                              <time dateTime={meeting.date}>
-                                {meeting.date}
-                              </time>
-                              <h2>{meeting.title}</h2>
-                              <p>{meeting.summary}</p>
-                              {meeting.decisions && (
-                                <div>
-                                  <strong>결정 사항</strong>
-                                  <p>{meeting.decisions}</p>
-                                </div>
-                              )}
-                              {meeting.nextActions && (
-                                <div>
-                                  <strong>다음 할 일</strong>
-                                  <p>{meeting.nextActions}</p>
-                                </div>
-                              )}
+                              <time dateTime={notice.date}>{notice.date}</time>
+                              <h2>
+                                {notice.pinned && <span>필독</span>}
+                                {notice.title}
+                              </h2>
+                              <p>{notice.body}</p>
                             </article>
                           ))
                         ) : (
                           <p className="intranet-empty">
-                            등록된 회의 기록이 없습니다.
+                            등록된 내부 공지가 없습니다.
                           </p>
                         )}
-                      </div>
-                    </section>
+                      </section>
+                    )}
+                    {intranetTab === "knowledge" && (
+                      <section className="intranet-panel intranet-wide-panel">
+                        <div className="intranet-panel-heading">
+                          <span>TEAM RESOURCES</span>
+                          <strong>{visibleIntranetResources.length}</strong>
+                        </div>
+                        <div className="intranet-resource-list">
+                          {visibleIntranetResources.length ? (
+                            visibleIntranetResources.map((resource) => {
+                              const resourceUrl = safeHttpsUrl(resource.url);
+                              return (
+                                <article
+                                  className="intranet-resource"
+                                  key={resource.id}
+                                >
+                                  <span>{resource.category}</span>
+                                  <h2>{resource.title}</h2>
+                                  <p>{resource.description}</p>
+                                  {resourceUrl && (
+                                    <a
+                                      href={resourceUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      자료 열기 <ArrowUpRight size={16} />
+                                    </a>
+                                  )}
+                                </article>
+                              );
+                            })
+                          ) : (
+                            <p className="intranet-empty">
+                              등록된 팀 자료가 없습니다.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    )}
+                    {intranetTab === "work" && (
+                      <section className="intranet-panel intranet-project-panel">
+                        <div className="intranet-panel-heading">
+                          <span>PROJECT STATUS</span>
+                          <strong>{visibleIntranetProjects.length}</strong>
+                        </div>
+                        <div className="intranet-project-list">
+                          {visibleIntranetProjects.length ? (
+                            visibleIntranetProjects.map((project) => {
+                              const projectUrl = safeHttpsUrl(project.url);
+                              const progress = Math.max(
+                                0,
+                                Math.min(100, Number(project.progress) || 0),
+                              );
+                              const statusLabels = {
+                                planning: "기획",
+                                active: "진행 중",
+                                blocked: "확인 필요",
+                                done: "완료",
+                              };
+                              return (
+                                <article
+                                  className="intranet-project"
+                                  key={project.id}
+                                >
+                                  <div className="intranet-project-top">
+                                    <span
+                                      className={`project-status ${project.status}`}
+                                    >
+                                      {statusLabels[project.status]}
+                                    </span>
+                                    <span>{progress}%</span>
+                                  </div>
+                                  <h2>{project.title}</h2>
+                                  <p>{project.summary}</p>
+                                  <div
+                                    className="project-progress"
+                                    aria-label={`진행률 ${progress}%`}
+                                  >
+                                    <span style={{ width: `${progress}%` }} />
+                                  </div>
+                                  <div className="intranet-project-footer">
+                                    <span>담당 {project.owner || "미정"}</span>
+                                    {projectUrl && (
+                                      <a
+                                        href={projectUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        프로젝트 열기 <ArrowUpRight size={15} />
+                                      </a>
+                                    )}
+                                  </div>
+                                </article>
+                              );
+                            })
+                          ) : (
+                            <p className="intranet-empty">
+                              등록된 프로젝트가 없습니다.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    )}
+                    {intranetTab === "knowledge" && (
+                      <section className="intranet-panel intranet-meeting-panel">
+                        <div className="intranet-panel-heading">
+                          <span>MEETING NOTES</span>
+                          <strong>{visibleIntranetMeetings.length}</strong>
+                        </div>
+                        <div className="intranet-meeting-list">
+                          {visibleIntranetMeetings.length ? (
+                            visibleIntranetMeetings.map((meeting) => (
+                              <article
+                                className="intranet-meeting"
+                                key={meeting.id}
+                              >
+                                <time dateTime={meeting.date}>
+                                  {meeting.date}
+                                </time>
+                                <h2>{meeting.title}</h2>
+                                <p>{meeting.summary}</p>
+                                {meeting.decisions && (
+                                  <div>
+                                    <strong>결정 사항</strong>
+                                    <p>{meeting.decisions}</p>
+                                  </div>
+                                )}
+                                {meeting.nextActions && (
+                                  <div>
+                                    <strong>다음 할 일</strong>
+                                    <p>{meeting.nextActions}</p>
+                                  </div>
+                                )}
+                              </article>
+                            ))
+                          ) : (
+                            <p className="intranet-empty">
+                              등록된 회의 기록이 없습니다.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    )}
                   </div>
                 </>
               )}
