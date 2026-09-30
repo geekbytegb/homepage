@@ -34,6 +34,33 @@ function validProduct(name = "Approved") {
     published: true,
   };
 }
+function validEvent(title = "Flexible Event") {
+  return {
+    title,
+    category: "Workshop",
+    description: "An event with a configurable application form.",
+    schedule: "2099-12-01",
+    format: "Online",
+    location: "Online",
+    capacity: "30",
+    registrationDeadline: "2099-11-30",
+    registrationDeadlineAt: Timestamp.fromDate(
+      new Date("2099-11-30T23:59:59Z"),
+    ),
+    registrationOpen: true,
+    applicationQuestions: JSON.stringify([
+      {
+        id: "q-1",
+        label: "Experience",
+        type: "long",
+        required: true,
+        options: [],
+      },
+    ]),
+    order: 1,
+    published: true,
+  };
+}
 before(async () => {
   environment = await initializeTestEnvironment({
     projectId: "demo-geek-byte",
@@ -291,6 +318,15 @@ test("an admin claim grants content write and application read access", async ()
     .firestore();
   await assertSucceeds(
     setDoc(doc(store, "products", "approved"), validProduct()),
+  );
+  await assertSucceeds(
+    setDoc(doc(store, "events", "flexible-event"), validEvent()),
+  );
+  await assertFails(
+    setDoc(doc(store, "events", "oversized-form"), {
+      ...validEvent("Oversized"),
+      applicationQuestions: "x".repeat(10001),
+    }),
   );
   await assertFails(
     setDoc(doc(store, "products", "unsafe-link"), {
@@ -829,12 +865,29 @@ test("applicants can create only their own initial application once", async () =
     email: "student@example.com",
     phone: "010-1234-5678",
     motivation: "",
+    answers: JSON.stringify([
+      { id: "q-1", label: "Experience", value: "Beginner" },
+    ]),
     consent: true,
     status: "new",
     createdAt: serverTimestamp(),
   };
   await assertFails(
     setDoc(doc(store, "applications", "another_event1"), payload),
+  );
+  const oversizedApplicant = environment
+    .authenticatedContext("oversized-student")
+    .firestore();
+  await assertFails(
+    setDoc(
+      doc(oversizedApplicant, "applications", "oversized-student_event1"),
+      {
+        ...payload,
+        userId: "oversized-student",
+        email: "oversized@example.com",
+        answers: "x".repeat(10001),
+      },
+    ),
   );
   await assertSucceeds(
     setDoc(doc(store, "applications", "student_event1"), payload),

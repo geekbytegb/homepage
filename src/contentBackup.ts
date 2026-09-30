@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase/firestore";
+import { parseEventQuestions } from "./eventQuestions.ts";
 
 export type BackupEntry = Record<string, unknown> & { id: string };
 export type ContentBackupPayload = {
@@ -361,10 +362,18 @@ function validateBackupPayload(payload: ContentBackupPayload) {
       location: 500,
       capacity: 100,
       registrationDeadline: 40,
+      applicationQuestions: 10000,
     },
     {},
-    ["order", "registrationDeadlineAt"],
+    ["order", "registrationDeadlineAt", "applicationQuestions"],
   );
+  payload.publicContent.events.forEach((item) => {
+    parseEventQuestions(
+      typeof item.applicationQuestions === "string"
+        ? item.applicationQuestions
+        : "",
+    );
+  });
   validateEntriesConstraints(
     payload.intranetContent.resources,
     "내부 자료",

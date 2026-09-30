@@ -52,6 +52,12 @@ import {
 } from "lucide-react";
 import { appCheckConfigured, auth, configured, db } from "./firebase";
 import { AdminDirectMessages } from "./AdminDirectMessages";
+import { EventQuestionsEditor } from "./EventQuestionsEditor";
+import {
+  parseApplicationAnswers,
+  parseEventQuestions,
+  type EventQuestion,
+} from "./eventQuestions";
 import { IntranetEvents } from "./IntranetEvents";
 import { IntranetMessenger } from "./IntranetMessenger";
 import { buildLaunchReadiness } from "./readiness";
@@ -115,6 +121,7 @@ const contentFieldLimits: Record<string, number> = {
   location: 500,
   capacity: 100,
   registrationDeadline: 40,
+  applicationQuestions: 10000,
   owner: 200,
   organizer: 200,
   url: 2048,
@@ -293,6 +300,20 @@ function csvCell(value: unknown) {
   if (/^[=+\-@]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
 }
+function applicationAnswersText(raw?: string) {
+  return parseApplicationAnswers(raw)
+    .map(
+      (answer) =>
+        `${answer.label}: ${
+          typeof answer.value === "boolean"
+            ? answer.value
+              ? "예"
+              : "아니요"
+            : answer.value || "미응답"
+        }`,
+    )
+    .join(" / ");
+}
 const emptyEditors: Record<
   Exclude<CollectionName, "applications">,
   Record<string, unknown>
@@ -326,6 +347,7 @@ const emptyEditors: Record<
     capacity: "",
     registrationDeadline: "",
     registrationOpen: false,
+    applicationQuestions: "",
     order: 1,
     published: false,
   },
@@ -462,6 +484,14 @@ function App() {
   const firstPageRender = useRef(true);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [applicationForm, setApplicationForm] = useState(initialForm);
+  const [applicationQuestions, setApplicationQuestions] = useState<
+    EventQuestion[]
+  >([]);
+  const [applicationQuestionsError, setApplicationQuestionsError] =
+    useState("");
+  const [applicationAnswers, setApplicationAnswers] = useState<
+    Record<string, string | boolean>
+  >({});
   const [contactForm, setContactForm] = useState(initialContactForm);
   const [applicationMessage, setApplicationMessage] = useState("");
   const [savingApplication, setSavingApplication] = useState(false);
@@ -972,6 +1002,26 @@ function App() {
   function openApplication(event: Event) {
     setSelectedEvent(event);
     setApplicationMessage("");
+    try {
+      const questions = parseEventQuestions(event.applicationQuestions);
+      setApplicationQuestions(questions);
+      setApplicationQuestionsError("");
+      setApplicationAnswers(
+        Object.fromEntries(
+          questions.map((question) => [
+            question.id,
+            question.type === "checkbox" ? false : "",
+          ]),
+        ),
+      );
+    } catch {
+      setApplicationQuestions([]);
+      setApplicationAnswers({});
+      const message =
+        "이 행사의 추가 질문 설정을 불러오지 못했습니다. 관리자에게 알려주세요.";
+      setApplicationQuestionsError(message);
+      setApplicationMessage(message);
+    }
     setApplicationForm({
       ...initialForm,
       name: user?.displayName || "",
@@ -983,6 +1033,37 @@ function App() {
     event.preventDefault();
     if (!db || !user || !selectedEvent || !privacyReady) return;
     setApplicationMessage("");
+    if (applicationQuestionsError) {
+      setApplicationMessage(applicationQuestionsError);
+      return;
+    }
+    const missingQuestion = applicationQuestions.find((question) => {
+      if (!question.required) return false;
+      const answer = applicationAnswers[question.id];
+      return question.type === "checkbox"
+        ? answer !== true
+        : !String(answer || "").trim();
+    });
+    if (missingQuestion) {
+      setApplicationMessage(
+        `필수 질문에 답해 주세요: ${missingQuestion.label}`,
+      );
+      return;
+    }
+    const answers = JSON.stringify(
+      applicationQuestions.map((question) => ({
+        id: question.id,
+        label: question.label,
+        value:
+          question.type === "checkbox"
+            ? applicationAnswers[question.id] === true
+            : String(applicationAnswers[question.id] || "").trim(),
+      })),
+    );
+    if (answers.length > 10000) {
+      setApplicationMessage("추가 질문 답변이 너무 깁니다.");
+      return;
+    }
     setSavingApplication(true);
     try {
       await setDoc(doc(db, "applications", `${user.uid}_${selectedEvent.id}`), {
@@ -992,6 +1073,7 @@ function App() {
         email: applicationForm.email.trim(),
         phone: applicationForm.phone.trim(),
         motivation: applicationForm.motivation.trim(),
+        answers,
         consent: true,
         status: "new",
         createdAt: serverTimestamp(),
@@ -2498,6 +2580,11 @@ function App() {
               </div>
             ) : (
               <form className="application-form" onSubmit={submitApplication}>
+                {applicationQuestionsError && (
+                  <p className="form-message error" role="alert">
+                    {applicationQuestionsError}
+                  </p>
+                )}
                 <div className="form-grid">
                   <label>
                     이름
@@ -2561,6 +2648,102 @@ function App() {
                     }
                   />
                 </label>
+                {applicationQuestions.length > 0 && (
+                  <fieldset className="application-extra-questions">
+                    <legend>행사 추가 질문</legend>
+                    {applicationQuestions.map((question) => (
+                      <label
+                        className={
+                          question.type === "checkbox"
+                            ? "checkbox-label application-question-checkbox"
+                            : ""
+                        }
+                        key={question.id}
+                      >
+                        {question.type === "checkbox" ? (
+                          <>
+                            <input
+                              checked={applicationAnswers[question.id] === true}
+                              onChange={(event) =>
+                                setApplicationAnswers({
+                                  ...applicationAnswers,
+                                  [question.id]: event.target.checked,
+                                })
+                              }
+                              required={question.required}
+                              type="checkbox"
+                            />
+                            <span>
+                              {question.label}{" "}
+                              {!question.required && (
+                                <span className="optional">선택</span>
+                              )}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span>
+                              {question.label}{" "}
+                              {!question.required && (
+                                <span className="optional">선택</span>
+                              )}
+                            </span>
+                            {question.type === "long" ? (
+                              <textarea
+                                maxLength={1000}
+                                onChange={(event) =>
+                                  setApplicationAnswers({
+                                    ...applicationAnswers,
+                                    [question.id]: event.target.value,
+                                  })
+                                }
+                                required={question.required}
+                                rows={4}
+                                value={String(
+                                  applicationAnswers[question.id] || "",
+                                )}
+                              />
+                            ) : question.type === "choice" ? (
+                              <select
+                                onChange={(event) =>
+                                  setApplicationAnswers({
+                                    ...applicationAnswers,
+                                    [question.id]: event.target.value,
+                                  })
+                                }
+                                required={question.required}
+                                value={String(
+                                  applicationAnswers[question.id] || "",
+                                )}
+                              >
+                                <option value="">선택해 주세요</option>
+                                {question.options.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                maxLength={300}
+                                onChange={(event) =>
+                                  setApplicationAnswers({
+                                    ...applicationAnswers,
+                                    [question.id]: event.target.value,
+                                  })
+                                }
+                                required={question.required}
+                                value={String(
+                                  applicationAnswers[question.id] || "",
+                                )}
+                              />
+                            )}
+                          </>
+                        )}
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
                 <label className="checkbox-label">
                   <input
                     type="checkbox"
@@ -2575,7 +2758,7 @@ function App() {
                   />
                   <span>
                     행사 신청 처리 및 연락을 위해 이름, 이메일, 연락처, 신청
-                    동기를 수집·이용하는 데 동의합니다.
+                    동기와 행사별 추가 질문 답변을 수집·이용하는 데 동의합니다.
                   </span>
                 </label>
                 <button
@@ -3100,6 +3283,7 @@ function AdminPanel(props: AdminProps) {
         throw new Error("INVALID_INTRANET_EVENT_URL");
       }
       if (name === "events") {
+        parseEventQuestions(String(value.applicationQuestions || ""));
         const deadline = String(value.registrationDeadline || "");
         if (value.registrationOpen && !deadline) {
           throw new Error("EVENT_DEADLINE_REQUIRED");
@@ -3131,7 +3315,9 @@ function AdminPanel(props: AdminProps) {
                   : error instanceof Error &&
                       error.message === "EVENT_DEADLINE_REQUIRED"
                     ? "신청 접수를 열려면 신청 마감일을 입력해 주세요."
-                    : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
+                    : error instanceof Error && error.message.startsWith("행사")
+                      ? error.message
+                      : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
       );
     } finally {
       setSaving(false);
@@ -3278,6 +3464,7 @@ function AdminPanel(props: AdminProps) {
       "연락처",
       "행사",
       "신청 동기",
+      "추가 질문 답변",
       "접수 일시",
       "삭제 요청 일시",
     ];
@@ -3288,6 +3475,7 @@ function AdminPanel(props: AdminProps) {
       item.phone,
       events.find((event) => event.id === item.eventId)?.title || item.eventId,
       item.motivation,
+      applicationAnswersText(item.answers),
       timestampDate(item.createdAt)?.toLocaleString("ko-KR") || "",
       timestampDate(item.deletionRequestedAt)?.toLocaleString("ko-KR") || "",
     ]);
@@ -4241,6 +4429,12 @@ function AdminPanel(props: AdminProps) {
                       </p>
                       <p>연락처: {item.phone}</p>
                       <p>신청 동기: {item.motivation || "없음"}</p>
+                      {item.answers && (
+                        <p className="application-custom-answers">
+                          추가 답변:{" "}
+                          {applicationAnswersText(item.answers) || "없음"}
+                        </p>
+                      )}
                       <p>
                         접수:{" "}
                         {timestampDate(item.createdAt)?.toLocaleString(
@@ -4480,6 +4674,12 @@ function AdminPanel(props: AdminProps) {
                     {textField("location", "장소 또는 접속 안내")}
                     {textField("capacity", "정원 (선택)")}
                     {textField("registrationDeadline", "신청 마감일")}
+                    <EventQuestionsEditor
+                      value={String(entryDraft.applicationQuestions || "")}
+                      onChange={(applicationQuestions) =>
+                        setEntryDraft({ ...entryDraft, applicationQuestions })
+                      }
+                    />
                     {orderField}
                     <label className="admin-check">
                       <input

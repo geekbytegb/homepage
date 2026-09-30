@@ -59,9 +59,35 @@ function profile(id) {
 
 test("valid content backup parses and counts only content documents", () => {
   const backup = validBackup();
+  backup.publicContent.events.push({
+    id: "workshop",
+    published: true,
+    title: "Workshop",
+    category: "Workshop",
+    description: "Flexible registration",
+    schedule: "2099-12-01",
+    format: "Online",
+    location: "Online",
+    capacity: "30",
+    registrationDeadline: "2099-11-30",
+    registrationOpen: true,
+    applicationQuestions: JSON.stringify([
+      {
+        id: "q-1",
+        label: "Experience",
+        type: "short",
+        required: false,
+        options: [],
+      },
+    ]),
+  });
   backup.intranetContent.profiles.push(profile("member-1"));
   const parsed = parseContentBackup(JSON.stringify(backup));
-  assert.equal(contentBackupCount(parsed), 1);
+  assert.equal(contentBackupCount(parsed), 2);
+  assert.equal(
+    parsed.publicContent.events[0].applicationQuestions,
+    backup.publicContent.events[0].applicationQuestions,
+  );
   assert.equal(parsed.intranetContent.profiles[0].id, "member-1");
 });
 
@@ -145,6 +171,36 @@ test("backup parser rejects unsafe links and unexpected content fields", () => {
   assert.throws(
     () => parseContentBackup(JSON.stringify(unexpected)),
     /허용되지 않은 admin 필드/,
+  );
+});
+
+test("backup parser validates configurable event questions", () => {
+  const backup = validBackup();
+  backup.publicContent.events.push({
+    id: "broken-form",
+    published: true,
+    title: "Broken",
+    category: "Workshop",
+    description: "Broken form",
+    schedule: "2099-12-01",
+    format: "Online",
+    location: "Online",
+    capacity: "30",
+    registrationDeadline: "2099-11-30",
+    registrationOpen: true,
+    applicationQuestions: JSON.stringify([
+      {
+        id: "q-1",
+        label: "Choose one",
+        type: "choice",
+        required: true,
+        options: ["Only one"],
+      },
+    ]),
+  });
+  assert.throws(
+    () => parseContentBackup(JSON.stringify(backup)),
+    /2~10개의 선택지/,
   );
 });
 

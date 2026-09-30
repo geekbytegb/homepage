@@ -132,6 +132,7 @@ export type Event = Entry & {
   registrationDeadline: string;
   registrationDeadlineAt?: { toDate: () => Date };
   registrationOpen: boolean;
+  applicationQuestions?: string;
   order?: number;
 };
 export type Application = {
@@ -142,6 +143,7 @@ export type Application = {
   email: string;
   phone: string;
   motivation: string;
+  answers?: string;
   consent: boolean;
   status:
     | "new"
