@@ -2100,6 +2100,8 @@ function App() {
           applications={applications}
           members={members}
           auditLogs={auditLogs}
+          currentUserEmail={user?.email?.toLocaleLowerCase("en-US") || ""}
+          hasRootAdminClaim={hasAdminClaim}
           tab={adminTab}
           setTab={setAdminTab}
           onClose={() => setActiveAdmin(false)}
@@ -2134,6 +2136,8 @@ type AdminProps = {
   applications: Application[];
   members: Member[];
   auditLogs: AdminAuditLog[];
+  currentUserEmail: string;
+  hasRootAdminClaim: boolean;
   tab: AdminTab;
   setTab: (tab: AdminTab) => void;
   onClose: () => void;
@@ -2180,6 +2184,8 @@ function AdminPanel(props: AdminProps) {
     applications,
     members,
     auditLogs,
+    currentUserEmail,
+    hasRootAdminClaim,
     tab,
     setTab,
     onClose,
@@ -2894,112 +2900,130 @@ function AdminPanel(props: AdminProps) {
               {members.length ? (
                 [...members]
                   .sort((a, b) => a.email.localeCompare(b.email))
-                  .map((member) => (
-                    <article className="admin-row" key={member.id}>
-                      <div>
-                        <div className="member-role-badges">
-                          <span
-                            className={`member-role-badge ${member.adminAccess ? "active" : ""}`}
-                          >
-                            관리자
-                          </span>
-                          <span
-                            className={`member-role-badge ${member.memberAccess ? "active" : ""}`}
-                          >
-                            내부자
-                          </span>
+                  .map((member) => {
+                    const protectsCurrentAdmin =
+                      member.id === currentUserEmail && !hasRootAdminClaim;
+                    return (
+                      <article className="admin-row" key={member.id}>
+                        <div>
+                          <div className="member-role-badges">
+                            <span
+                              className={`member-role-badge ${member.adminAccess ? "active" : ""}`}
+                            >
+                              관리자
+                            </span>
+                            <span
+                              className={`member-role-badge ${member.memberAccess ? "active" : ""}`}
+                            >
+                              내부자
+                            </span>
+                          </div>
+                          <h3>{member.displayName || "이름 없음"}</h3>
+                          <p>{member.email}</p>
+                          {protectsCurrentAdmin && (
+                            <small className="member-self-protection">
+                              현재 로그인한 관리자 계정은 자기 잠금 방지를 위해
+                              관리자 역할과 계정 항목을 직접 해제할 수 없습니다.
+                            </small>
+                          )}
                         </div>
-                        <h3>{member.displayName || "이름 없음"}</h3>
-                        <p>{member.email}</p>
-                      </div>
-                      <div className="admin-row-actions">
-                        {roleConfirmKey === `admin:${member.id}` ? (
-                          <span className="admin-delete-confirm">
+                        <div className="admin-row-actions">
+                          {roleConfirmKey === `admin:${member.id}` ? (
+                            <span className="admin-delete-confirm">
+                              <button
+                                className="danger"
+                                disabled={saving}
+                                onClick={() =>
+                                  toggleMemberRole(member, "adminAccess")
+                                }
+                              >
+                                관리자 {member.adminAccess ? "해제" : "부여"}{" "}
+                                확인
+                              </button>
+                              <button onClick={() => setRoleConfirmKey(null)}>
+                                취소
+                              </button>
+                            </span>
+                          ) : (
                             <button
-                              className="danger"
-                              disabled={saving}
+                              disabled={saving || protectsCurrentAdmin}
+                              title={
+                                protectsCurrentAdmin
+                                  ? "현재 관리자 권한은 다른 관리자 또는 루트 관리자가 변경해야 합니다."
+                                  : undefined
+                              }
                               onClick={() =>
-                                toggleMemberRole(member, "adminAccess")
+                                setRoleConfirmKey(`admin:${member.id}`)
                               }
                             >
-                              관리자 {member.adminAccess ? "해제" : "부여"} 확인
+                              {member.adminAccess ? (
+                                <EyeOff size={17} />
+                              ) : (
+                                <Eye size={17} />
+                              )}
+                              관리자 {member.adminAccess ? "해제" : "부여"}
                             </button>
-                            <button onClick={() => setRoleConfirmKey(null)}>
-                              취소
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            disabled={saving}
-                            onClick={() =>
-                              setRoleConfirmKey(`admin:${member.id}`)
-                            }
-                          >
-                            {member.adminAccess ? (
-                              <EyeOff size={17} />
-                            ) : (
-                              <Eye size={17} />
-                            )}
-                            관리자 {member.adminAccess ? "해제" : "부여"}
-                          </button>
-                        )}
-                        {roleConfirmKey === `member:${member.id}` ? (
-                          <span className="admin-delete-confirm">
+                          )}
+                          {roleConfirmKey === `member:${member.id}` ? (
+                            <span className="admin-delete-confirm">
+                              <button
+                                className="danger"
+                                disabled={saving}
+                                onClick={() =>
+                                  toggleMemberRole(member, "memberAccess")
+                                }
+                              >
+                                내부자 {member.memberAccess ? "해제" : "부여"}{" "}
+                                확인
+                              </button>
+                              <button onClick={() => setRoleConfirmKey(null)}>
+                                취소
+                              </button>
+                            </span>
+                          ) : (
                             <button
-                              className="danger"
                               disabled={saving}
                               onClick={() =>
-                                toggleMemberRole(member, "memberAccess")
+                                setRoleConfirmKey(`member:${member.id}`)
                               }
                             >
-                              내부자 {member.memberAccess ? "해제" : "부여"}{" "}
-                              확인
+                              {member.memberAccess ? (
+                                <EyeOff size={17} />
+                              ) : (
+                                <Eye size={17} />
+                              )}
+                              내부자 {member.memberAccess ? "해제" : "부여"}
                             </button>
-                            <button onClick={() => setRoleConfirmKey(null)}>
-                              취소
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            disabled={saving}
-                            onClick={() =>
-                              setRoleConfirmKey(`member:${member.id}`)
-                            }
-                          >
-                            {member.memberAccess ? (
-                              <EyeOff size={17} />
-                            ) : (
-                              <Eye size={17} />
-                            )}
-                            내부자 {member.memberAccess ? "해제" : "부여"}
-                          </button>
-                        )}
-                        {deletingId === `member:${member.id}` ? (
-                          <span className="admin-delete-confirm">
+                          )}
+                          {deletingId === `member:${member.id}` ? (
+                            <span className="admin-delete-confirm">
+                              <button
+                                className="danger"
+                                disabled={saving}
+                                onClick={() => removeMember(member.id)}
+                              >
+                                삭제 확인
+                              </button>
+                              <button onClick={() => setDeletingId(null)}>
+                                취소
+                              </button>
+                            </span>
+                          ) : (
                             <button
-                              className="danger"
-                              disabled={saving}
-                              onClick={() => removeMember(member.id)}
+                              className="icon-danger"
+                              disabled={saving || protectsCurrentAdmin}
+                              onClick={() =>
+                                setDeletingId(`member:${member.id}`)
+                              }
+                              aria-label={`${member.email} 구성원 권한 삭제`}
                             >
-                              삭제 확인
+                              <Trash2 size={17} />
                             </button>
-                            <button onClick={() => setDeletingId(null)}>
-                              취소
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            className="icon-danger"
-                            disabled={saving}
-                            onClick={() => setDeletingId(`member:${member.id}`)}
-                            aria-label={`${member.email} 구성원 권한 삭제`}
-                          >
-                            <Trash2 size={17} />
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  ))
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })
               ) : (
                 <p className="admin-empty">등록된 구성원이 없습니다.</p>
               )}

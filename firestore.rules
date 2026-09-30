@@ -79,7 +79,15 @@ service cloud.firestore {
     match /members/{memberEmail} {
       allow read: if admin()
         || (signedIn() && request.auth.token.get('email', '') == memberEmail);
-      allow create, update, delete: if admin();
+      allow create: if admin();
+      allow update: if admin()
+        && (request.auth.token.get('admin', false) == true
+          || request.auth.token.get('email', '') != memberEmail
+          || (request.resource.data.active == true
+            && request.resource.data.get('adminAccess', false) == true));
+      allow delete: if admin()
+        && (request.auth.token.get('admin', false) == true
+          || request.auth.token.get('email', '') != memberEmail);
     }
     match /adminAuditLogs/{logId} {
       allow read: if admin();

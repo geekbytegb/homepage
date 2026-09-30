@@ -185,6 +185,38 @@ test("directory administrator and intranet member roles stay independent", async
       published: true,
     }),
   );
+  await assertSucceeds(
+    updateDoc(doc(directoryAdmin, "members", "siteadmin@example.com"), {
+      memberAccess: true,
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(directoryAdmin, "members", "siteadmin@example.com"), {
+      adminAccess: false,
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(directoryAdmin, "members", "siteadmin@example.com"), {
+      active: false,
+    }),
+  );
+  await assertFails(
+    deleteDoc(doc(directoryAdmin, "members", "siteadmin@example.com")),
+  );
+  const rootAdmin = environment
+    .authenticatedContext("root-admin", {
+      admin: true,
+      email: "siteadmin@example.com",
+    })
+    .firestore();
+  await assertSucceeds(
+    updateDoc(doc(rootAdmin, "members", "siteadmin@example.com"), {
+      adminAccess: false,
+    }),
+  );
+  await assertSucceeds(
+    deleteDoc(doc(rootAdmin, "members", "siteadmin@example.com")),
+  );
   const listedMember = environment
     .authenticatedContext("listed-role", { email: "listed@example.com" })
     .firestore();

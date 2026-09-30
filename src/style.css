@@ -1878,6 +1878,18 @@ button.admin-dashboard-row:hover {
   background: rgba(91, 113, 224, 0.18);
   color: #c9d2ff;
 }
+.member-self-protection {
+  display: block;
+  max-width: 500px;
+  margin-top: 10px;
+  color: #d0b985;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.admin-row-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
 .audit-log-list {
   max-width: 900px;
 }
