@@ -1058,9 +1058,14 @@ select:focus-visible {
   padding-top: 135px;
   padding-bottom: 145px;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 35px;
+}
+.contact-copy {
+  position: sticky;
+  top: 120px;
+  max-width: 520px;
 }
 .contact-section h2 {
   margin-bottom: 25px;
@@ -1083,6 +1088,80 @@ select:focus-visible {
 .contact-link.pending {
   color: #666d88;
   border-color: #3e455a;
+}
+.contact-panel {
+  width: min(590px, 100%);
+  border: 1px solid #343b4c;
+  background: #151923;
+}
+.contact-address {
+  padding: 21px 24px;
+  border-bottom: 1px solid #343b4c;
+  background: #1b202c;
+}
+.contact-address > span {
+  display: block;
+  margin-bottom: 8px;
+  color: #8296ff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+}
+.contact-address a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #cbd3ff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.contact-form {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  padding: 25px;
+}
+.contact-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #aeb5c4;
+  font-size: 11px;
+  font-weight: 700;
+}
+.contact-form input,
+.contact-form select,
+.contact-form textarea {
+  width: 100%;
+  border: 1px solid #434b5e;
+  background: #0e1118;
+  color: #eef0f7;
+  padding: 11px 12px;
+  font: inherit;
+  font-size: 13px;
+}
+.contact-form textarea {
+  resize: vertical;
+}
+.contact-form label small {
+  align-self: flex-end;
+  color: #737c8e;
+  font-size: 9px;
+  font-weight: 400;
+}
+.contact-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.contact-form > p:not(.section-kicker) {
+  margin: 0;
+  color: #81899a;
+  font-size: 10px;
+  line-height: 1.65;
+}
+.contact-form .button {
+  align-self: flex-start;
 }
 .site-footer {
   background: #090a0f;
@@ -2411,6 +2490,12 @@ button.admin-dashboard-row:hover {
     padding-bottom: 100px;
     display: block;
   }
+  .contact-copy {
+    position: static;
+  }
+  .contact-panel {
+    margin-top: 40px;
+  }
   .contact-link {
     margin-top: 40px;
     width: max-content;
@@ -2529,6 +2614,12 @@ button.admin-dashboard-row:hover {
   }
 }
 @media (max-width: 440px) {
+  .contact-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .contact-form {
+    padding: 20px;
+  }
   .admin-dashboard-intro {
     align-items: flex-start;
     flex-direction: column;

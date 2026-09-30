@@ -85,6 +85,12 @@ const initialForm = {
   motivation: "",
   consent: false,
 };
+const initialContactForm = {
+  category: "협업 제안",
+  name: "",
+  email: "",
+  message: "",
+};
 function safeHttpUrl(value: string) {
   try {
     const url = new URL(value);
@@ -287,6 +293,7 @@ function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [applicationForm, setApplicationForm] = useState(initialForm);
+  const [contactForm, setContactForm] = useState(initialContactForm);
   const [applicationMessage, setApplicationMessage] = useState("");
   const [savingApplication, setSavingApplication] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -756,6 +763,20 @@ function App() {
     } finally {
       setSavingApplication(false);
     }
+  }
+
+  function openContactEmail(event: FormEvent) {
+    event.preventDefault();
+    if (!overview.email) return;
+    const subject = `[Geek Byte ${contactForm.category}] ${contactForm.name.trim()}`;
+    const body = [
+      `문의 유형: ${contactForm.category}`,
+      `이름: ${contactForm.name.trim()}`,
+      `회신 이메일: ${contactForm.email.trim()}`,
+      "",
+      contactForm.message.trim(),
+    ].join("\n");
+    window.location.href = `mailto:${overview.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
   function appendAudit(
@@ -1469,7 +1490,7 @@ function App() {
 
           {page === "/contact" && (
             <section className="contact-section section-wrap" id="contact">
-              <div>
+              <div className="contact-copy">
                 <p className="section-kicker">
                   <span>06 /</span> LET'S CONNECT
                 </p>
@@ -1481,10 +1502,89 @@ function App() {
                 <p>협업, 제안, 궁금한 점이 있다면 편하게 이야기해 주세요.</p>
               </div>
               {overview.email ? (
-                <a className="contact-link" href={`mailto:${overview.email}`}>
-                  {overview.email}
-                  <ArrowUpRight size={25} />
-                </a>
+                <div className="contact-panel">
+                  <div className="contact-address">
+                    <span>OFFICIAL CONTACT</span>
+                    <a href={`mailto:${overview.email}`}>
+                      {overview.email}
+                      <ArrowUpRight size={18} />
+                    </a>
+                  </div>
+                  <form className="contact-form" onSubmit={openContactEmail}>
+                    <label>
+                      문의 유형
+                      <select
+                        value={contactForm.category}
+                        onChange={(event) =>
+                          setContactForm({
+                            ...contactForm,
+                            category: event.target.value,
+                          })
+                        }
+                      >
+                        <option>협업 제안</option>
+                        <option>제품·서비스 문의</option>
+                        <option>행사 문의</option>
+                        <option>미디어·기타 문의</option>
+                      </select>
+                    </label>
+                    <div className="contact-form-grid">
+                      <label>
+                        이름
+                        <input
+                          required
+                          maxLength={80}
+                          value={contactForm.name}
+                          onChange={(event) =>
+                            setContactForm({
+                              ...contactForm,
+                              name: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                      <label>
+                        회신 이메일
+                        <input
+                          required
+                          type="email"
+                          maxLength={254}
+                          value={contactForm.email}
+                          onChange={(event) =>
+                            setContactForm({
+                              ...contactForm,
+                              email: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    </div>
+                    <label>
+                      문의 내용
+                      <textarea
+                        required
+                        rows={7}
+                        minLength={10}
+                        maxLength={2000}
+                        value={contactForm.message}
+                        onChange={(event) =>
+                          setContactForm({
+                            ...contactForm,
+                            message: event.target.value,
+                          })
+                        }
+                      />
+                      <small>{contactForm.message.length} / 2,000자</small>
+                    </label>
+                    <p>
+                      입력 내용은 사이트에 저장되지 않습니다. 버튼을 누르면 메일
+                      앱에서 내용을 확인한 뒤 직접 전송할 수 있습니다.
+                    </p>
+                    <button className="button button-primary">
+                      메일 앱에서 문의 작성 <ArrowUpRight size={17} />
+                    </button>
+                  </form>
+                </div>
               ) : (
                 <span className="contact-link pending">
                   연락 채널 준비 중 <ArrowUpRight size={25} />
