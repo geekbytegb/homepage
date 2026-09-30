@@ -41,6 +41,21 @@ export type IntranetResource = Entry & {
   category: string;
   url: string;
 };
+export type IntranetProject = Entry & {
+  title: string;
+  summary: string;
+  owner: string;
+  status: "planning" | "active" | "blocked" | "done";
+  progress: number;
+  url: string;
+};
+export type IntranetMeeting = Entry & {
+  title: string;
+  date: string;
+  summary: string;
+  decisions: string;
+  nextActions: string;
+};
 export type Product = Entry & {
   name: string;
   category: string;
@@ -78,6 +93,8 @@ export type Member = {
   email: string;
   displayName: string;
   active: boolean;
+  adminAccess: boolean;
+  memberAccess: boolean;
   updatedAt?: { toDate: () => Date };
 };
 

@@ -2,14 +2,29 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function admin() { return signedIn() && request.auth.token.get('admin', false) == true; }
+    function directoryAdmin() {
+      return signedIn()
+        && request.auth.token.get('email', '') is string
+        && request.auth.token.get('email', '').size() > 0
+        && exists(/databases/$(database)/documents/members/$(request.auth.token.get('email', '')))
+        && get(/databases/$(database)/documents/members/$(request.auth.token.get('email', ''))).data.active == true
+        && get(/databases/$(database)/documents/members/$(request.auth.token.get('email', ''))).data.get('adminAccess', false) == true;
+    }
+    function directoryMember() {
+      return signedIn()
+        && request.auth.token.get('email', '') is string
+        && request.auth.token.get('email', '').size() > 0
+        && exists(/databases/$(database)/documents/members/$(request.auth.token.get('email', '')))
+        && get(/databases/$(database)/documents/members/$(request.auth.token.get('email', ''))).data.active == true
+        && get(/databases/$(database)/documents/members/$(request.auth.token.get('email', ''))).data.get('memberAccess', false) == true;
+    }
+    function admin() {
+      return signedIn()
+        && (request.auth.token.get('admin', false) == true || directoryAdmin());
+    }
     function member() {
-      return admin()
-        || (signedIn() && request.auth.token.get('member', false) == true)
-        || (signedIn()
-          && request.auth.token.email is string
-          && exists(/databases/$(database)/documents/members/$(request.auth.token.email))
-          && get(/databases/$(database)/documents/members/$(request.auth.token.email)).data.active == true);
+      return signedIn()
+        && (request.auth.token.get('member', false) == true || directoryMember());
     }
     function publicOrAdmin() { return admin() || resource.data.published == true; }
     function privacyReady() {
@@ -46,16 +61,24 @@ service cloud.firestore {
       allow write: if admin();
     }
     match /intranetNotices/{itemId} {
-      allow read: if member();
+      allow read: if member() || admin();
       allow write: if admin();
     }
     match /intranetResources/{itemId} {
-      allow read: if member();
+      allow read: if member() || admin();
+      allow write: if admin();
+    }
+    match /intranetProjects/{itemId} {
+      allow read: if member() || admin();
+      allow write: if admin();
+    }
+    match /intranetMeetings/{itemId} {
+      allow read: if member() || admin();
       allow write: if admin();
     }
     match /members/{memberEmail} {
       allow read: if admin()
-        || (signedIn() && request.auth.token.email == memberEmail);
+        || (signedIn() && request.auth.token.get('email', '') == memberEmail);
       allow create, update, delete: if admin();
     }
     match /applications/{applicationId} {

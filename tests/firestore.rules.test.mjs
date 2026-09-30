@@ -50,15 +50,34 @@ before(async () => {
       body: "Members only",
       published: true,
     });
+    await setDoc(doc(store, "intranetProjects", "project"), {
+      title: "Project",
+      published: true,
+    });
+    await setDoc(doc(store, "intranetMeetings", "meeting"), {
+      title: "Meeting",
+      published: true,
+    });
     await setDoc(doc(store, "members", "listed@example.com"), {
       email: "listed@example.com",
       displayName: "Listed Member",
       active: true,
+      adminAccess: false,
+      memberAccess: true,
     });
     await setDoc(doc(store, "members", "inactive@example.com"), {
       email: "inactive@example.com",
       displayName: "Inactive Member",
       active: false,
+      adminAccess: false,
+      memberAccess: true,
+    });
+    await setDoc(doc(store, "members", "siteadmin@example.com"), {
+      email: "siteadmin@example.com",
+      displayName: "Site Admin",
+      active: true,
+      adminAccess: true,
+      memberAccess: false,
     });
   });
 });
@@ -114,6 +133,12 @@ test("only members and admins can read intranet content", async () => {
     getDoc(doc(listedMember, "intranetNotices", "internal")),
   );
   await assertSucceeds(
+    getDoc(doc(listedMember, "intranetProjects", "project")),
+  );
+  await assertSucceeds(
+    getDoc(doc(listedMember, "intranetMeetings", "meeting")),
+  );
+  await assertSucceeds(
     getDoc(doc(listedMember, "members", "listed@example.com")),
   );
   await assertFails(getDocs(collection(listedMember, "members")));
@@ -145,6 +170,29 @@ test("an admin claim grants content write and application read access", async ()
   );
   await assertSucceeds(getDocs(collection(store, "applications")));
   await assertSucceeds(deleteDoc(doc(store, "notices", "draft")));
+});
+
+test("directory administrator and intranet member roles stay independent", async () => {
+  const directoryAdmin = environment
+    .authenticatedContext("directory-admin", {
+      email: "siteadmin@example.com",
+    })
+    .firestore();
+  await assertSucceeds(
+    setDoc(doc(directoryAdmin, "products", "directory-approved"), {
+      name: "Approved",
+      published: true,
+    }),
+  );
+  const listedMember = environment
+    .authenticatedContext("listed-role", { email: "listed@example.com" })
+    .firestore();
+  await assertFails(
+    setDoc(doc(listedMember, "products", "member-injected"), {
+      name: "Injected",
+      published: true,
+    }),
+  );
 });
 
 test("only an admin can delete application records", async () => {

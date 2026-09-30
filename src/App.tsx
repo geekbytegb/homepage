@@ -50,6 +50,8 @@ import {
   type Entry,
   type HistoryItem,
   type IntranetResource,
+  type IntranetProject,
+  type IntranetMeeting,
   type Member,
   type Notice,
   type Overview,
@@ -65,6 +67,8 @@ type CollectionName =
   | "events"
   | "intranetNotices"
   | "intranetResources"
+  | "intranetProjects"
+  | "intranetMeetings"
   | "applications";
 type AdminTab = "overview" | "privacy" | "members" | CollectionName;
 const initialForm = {
@@ -181,6 +185,23 @@ const emptyEditors: Record<
     url: "",
     published: false,
   },
+  intranetProjects: {
+    title: "",
+    summary: "",
+    owner: "",
+    status: "planning",
+    progress: 0,
+    url: "",
+    published: false,
+  },
+  intranetMeetings: {
+    title: "",
+    date: new Date().toISOString().slice(0, 10),
+    summary: "",
+    decisions: "",
+    nextActions: "",
+    published: false,
+  },
 };
 
 function useEntries<T extends Entry>(
@@ -194,7 +215,7 @@ function useEntries<T extends Entry>(
   const [error, setError] = useState("");
   useEffect(() => {
     if (!db) return;
-    if (memberOnly && !member) {
+    if (memberOnly && !member && !admin) {
       setItems([]);
       setError("");
       return;
@@ -235,7 +256,9 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMember, setIsMember] = useState(false);
+  const [hasAdminClaim, setHasAdminClaim] = useState(false);
   const [hasMemberClaim, setHasMemberClaim] = useState(false);
+  const [authReady, setAuthReady] = useState(!auth);
   const [overview, setOverview] = useState<Overview>(defaultOverview);
   const [privacy, setPrivacy] = useState<Privacy>(defaultPrivacy);
   const [privacyOpen, setPrivacyOpen] = useState(false);
@@ -281,6 +304,20 @@ function App() {
     true,
     isMember,
   );
+  const intranetProjects = useEntries<IntranetProject>(
+    "intranetProjects",
+    isAdmin,
+    [],
+    true,
+    isMember,
+  );
+  const intranetMeetings = useEntries<IntranetMeeting>(
+    "intranetMeetings",
+    isAdmin,
+    [],
+    true,
+    isMember,
+  );
 
   useEffect(() => {
     if (!auth) return;
@@ -290,38 +327,48 @@ function App() {
         const token = current ? await current.getIdTokenResult(true) : null;
         const admin = token?.claims.admin === true;
         const memberClaim = token?.claims.member === true;
+        setHasAdminClaim(admin);
         setIsAdmin(admin);
         setHasMemberClaim(memberClaim);
-        setIsMember(admin || memberClaim);
+        setIsMember(memberClaim);
       } catch {
+        setHasAdminClaim(false);
         setIsAdmin(false);
         setHasMemberClaim(false);
         setIsMember(false);
       }
       if (!current) {
         setActiveAdmin(false);
+        setHasAdminClaim(false);
+        setHasMemberClaim(false);
+        setIsAdmin(false);
         setIsMember(false);
       }
+      setAuthReady(true);
     });
   }, []);
 
   useEffect(() => {
     if (!db || !user?.email) {
-      if (!isAdmin && !hasMemberClaim) setIsMember(false);
-      return;
-    }
-    if (isAdmin || hasMemberClaim) {
-      setIsMember(true);
+      setIsAdmin(hasAdminClaim);
+      setIsMember(hasMemberClaim);
       return;
     }
     const email = user.email.toLocaleLowerCase("en-US");
     return onSnapshot(
       doc(db, "members", email),
-      (snapshot) =>
-        setIsMember(snapshot.exists() && snapshot.data().active === true),
-      () => setIsMember(false),
+      (snapshot) => {
+        const data = snapshot.data();
+        const active = snapshot.exists() && data?.active === true;
+        setIsAdmin(hasAdminClaim || (active && data?.adminAccess === true));
+        setIsMember(hasMemberClaim || (active && data?.memberAccess === true));
+      },
+      () => {
+        setIsAdmin(hasAdminClaim);
+        setIsMember(hasMemberClaim);
+      },
     );
-  }, [hasMemberClaim, isAdmin, user]);
+  }, [hasAdminClaim, hasMemberClaim, user]);
 
   useEffect(() => {
     if (!db) return;
@@ -425,6 +472,17 @@ function App() {
     () => intranetResources.items.filter((item) => item.published),
     [intranetResources.items],
   );
+  const visibleIntranetProjects = useMemo(
+    () => intranetProjects.items.filter((item) => item.published),
+    [intranetProjects.items],
+  );
+  const visibleIntranetMeetings = useMemo(
+    () =>
+      intranetMeetings.items
+        .filter((item) => item.published)
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [intranetMeetings.items],
+  );
   const contentError =
     page === "/about"
       ? history.error
@@ -435,7 +493,10 @@ function App() {
           : page === "/events"
             ? events.error
             : page === "/intranet"
-              ? intranetNotices.error || intranetResources.error
+              ? intranetNotices.error ||
+                intranetResources.error ||
+                intranetProjects.error ||
+                intranetMeetings.error
               : "";
   const privacyReady = Boolean(
     privacy.published &&
@@ -657,7 +718,11 @@ function App() {
     setAdminMessage("신청 내역이 삭제되었습니다.");
   }
 
-  async function saveMember(email: string, displayName: string) {
+  async function saveMember(
+    email: string,
+    displayName: string,
+    roles: { adminAccess: boolean; memberAccess: boolean },
+  ) {
     if (!db) return;
     const normalizedEmail = email.trim().toLocaleLowerCase("en-US");
     await setDoc(
@@ -666,21 +731,28 @@ function App() {
         email: normalizedEmail,
         displayName: displayName.trim(),
         active: true,
+        adminAccess: roles.adminAccess,
+        memberAccess: roles.memberAccess,
         updatedAt: serverTimestamp(),
       },
       { merge: true },
     );
-    setAdminMessage("구성원 인트라넷 권한이 저장되었습니다.");
+    setAdminMessage("계정 역할이 저장되었습니다.");
   }
 
-  async function setMemberActive(member: Member, active: boolean) {
+  async function setMemberRole(
+    member: Member,
+    role: "adminAccess" | "memberAccess",
+    enabled: boolean,
+  ) {
     if (!db) return;
     await updateDoc(doc(db, "members", member.id), {
-      active,
+      [role]: enabled,
+      active: true,
       updatedAt: serverTimestamp(),
     });
     setAdminMessage(
-      active ? "구성원 권한을 활성화했습니다." : "구성원 권한을 중지했습니다.",
+      `${role === "adminAccess" ? "관리자" : "내부자"} 역할을 ${enabled ? "부여했습니다." : "해제했습니다."}`,
     );
   }
 
@@ -1189,7 +1261,15 @@ function App() {
           )}
           {page === "/intranet" && (
             <section className="intranet-section section-wrap">
-              {!user ? (
+              {!authReady ? (
+                <div className="intranet-gate" aria-busy="true">
+                  <LockKeyhole size={32} />
+                  <p className="section-kicker">
+                    <span>SECURE ACCESS /</span> CHECKING
+                  </p>
+                  <h1>접근 권한을 확인하고 있습니다.</h1>
+                </div>
+              ) : !user ? (
                 <div className="intranet-gate">
                   <LockKeyhole size={32} />
                   <p className="section-kicker">
@@ -1299,6 +1379,106 @@ function App() {
                         ) : (
                           <p className="intranet-empty">
                             등록된 팀 자료가 없습니다.
+                          </p>
+                        )}
+                      </div>
+                    </section>
+                    <section className="intranet-panel intranet-project-panel">
+                      <div className="intranet-panel-heading">
+                        <span>PROJECT STATUS</span>
+                        <strong>{visibleIntranetProjects.length}</strong>
+                      </div>
+                      <div className="intranet-project-list">
+                        {visibleIntranetProjects.length ? (
+                          visibleIntranetProjects.map((project) => {
+                            const projectUrl = safeHttpUrl(project.url);
+                            const progress = Math.max(
+                              0,
+                              Math.min(100, Number(project.progress) || 0),
+                            );
+                            const statusLabels = {
+                              planning: "기획",
+                              active: "진행 중",
+                              blocked: "확인 필요",
+                              done: "완료",
+                            };
+                            return (
+                              <article
+                                className="intranet-project"
+                                key={project.id}
+                              >
+                                <div className="intranet-project-top">
+                                  <span
+                                    className={`project-status ${project.status}`}
+                                  >
+                                    {statusLabels[project.status]}
+                                  </span>
+                                  <span>{progress}%</span>
+                                </div>
+                                <h2>{project.title}</h2>
+                                <p>{project.summary}</p>
+                                <div
+                                  className="project-progress"
+                                  aria-label={`진행률 ${progress}%`}
+                                >
+                                  <span style={{ width: `${progress}%` }} />
+                                </div>
+                                <div className="intranet-project-footer">
+                                  <span>담당 {project.owner || "미정"}</span>
+                                  {projectUrl && (
+                                    <a
+                                      href={projectUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      프로젝트 열기 <ArrowUpRight size={15} />
+                                    </a>
+                                  )}
+                                </div>
+                              </article>
+                            );
+                          })
+                        ) : (
+                          <p className="intranet-empty">
+                            등록된 프로젝트가 없습니다.
+                          </p>
+                        )}
+                      </div>
+                    </section>
+                    <section className="intranet-panel intranet-meeting-panel">
+                      <div className="intranet-panel-heading">
+                        <span>MEETING NOTES</span>
+                        <strong>{visibleIntranetMeetings.length}</strong>
+                      </div>
+                      <div className="intranet-meeting-list">
+                        {visibleIntranetMeetings.length ? (
+                          visibleIntranetMeetings.map((meeting) => (
+                            <article
+                              className="intranet-meeting"
+                              key={meeting.id}
+                            >
+                              <time dateTime={meeting.date}>
+                                {meeting.date}
+                              </time>
+                              <h2>{meeting.title}</h2>
+                              <p>{meeting.summary}</p>
+                              {meeting.decisions && (
+                                <div>
+                                  <strong>결정 사항</strong>
+                                  <p>{meeting.decisions}</p>
+                                </div>
+                              )}
+                              {meeting.nextActions && (
+                                <div>
+                                  <strong>다음 할 일</strong>
+                                  <p>{meeting.nextActions}</p>
+                                </div>
+                              )}
+                            </article>
+                          ))
+                        ) : (
+                          <p className="intranet-empty">
+                            등록된 회의 기록이 없습니다.
                           </p>
                         )}
                       </div>
@@ -1682,6 +1862,8 @@ function App() {
           events={events.items}
           intranetNotices={intranetNotices.items}
           intranetResources={intranetResources.items}
+          intranetProjects={intranetProjects.items}
+          intranetMeetings={intranetMeetings.items}
           applications={applications}
           members={members}
           tab={adminTab}
@@ -1693,7 +1875,7 @@ function App() {
           onStatus={changeApplicationStatus}
           onDeleteApplication={deleteApplication}
           onSaveMember={saveMember}
-          onSetMemberActive={setMemberActive}
+          onSetMemberRole={setMemberRole}
           onDeleteMember={deleteMember}
           onDeleteEntry={deleteEntry}
           message={adminMessage}
@@ -1713,6 +1895,8 @@ type AdminProps = {
   events: Event[];
   intranetNotices: Notice[];
   intranetResources: IntranetResource[];
+  intranetProjects: IntranetProject[];
+  intranetMeetings: IntranetMeeting[];
   applications: Application[];
   members: Member[];
   tab: AdminTab;
@@ -1727,8 +1911,16 @@ type AdminProps = {
   ) => Promise<void>;
   onStatus: (item: Application, status: Application["status"]) => Promise<void>;
   onDeleteApplication: (id: string) => Promise<void>;
-  onSaveMember: (email: string, displayName: string) => Promise<void>;
-  onSetMemberActive: (member: Member, active: boolean) => Promise<void>;
+  onSaveMember: (
+    email: string,
+    displayName: string,
+    roles: { adminAccess: boolean; memberAccess: boolean },
+  ) => Promise<void>;
+  onSetMemberRole: (
+    member: Member,
+    role: "adminAccess" | "memberAccess",
+    enabled: boolean,
+  ) => Promise<void>;
   onDeleteMember: (id: string) => Promise<void>;
   onDeleteEntry: (
     name: Exclude<CollectionName, "applications">,
@@ -1748,6 +1940,8 @@ function AdminPanel(props: AdminProps) {
     events,
     intranetNotices,
     intranetResources,
+    intranetProjects,
+    intranetMeetings,
     applications,
     members,
     tab,
@@ -1759,7 +1953,7 @@ function AdminPanel(props: AdminProps) {
     onStatus,
     onDeleteApplication,
     onSaveMember,
-    onSetMemberActive,
+    onSetMemberRole,
     onDeleteMember,
     onDeleteEntry,
     message,
@@ -1785,6 +1979,8 @@ function AdminPanel(props: AdminProps) {
   >("all");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberName, setMemberName] = useState("");
+  const [newAdminAccess, setNewAdminAccess] = useState(false);
+  const [newMemberAccess, setNewMemberAccess] = useState(true);
   const collections: Record<
     Exclude<CollectionName, "applications">,
     Entry[]
@@ -1795,6 +1991,8 @@ function AdminPanel(props: AdminProps) {
     events,
     intranetNotices,
     intranetResources,
+    intranetProjects,
+    intranetMeetings,
   };
   const labels: Record<AdminTab, string> = {
     overview: "사이트 소개",
@@ -1805,6 +2003,8 @@ function AdminPanel(props: AdminProps) {
     events: "행사",
     intranetNotices: "내부 공지",
     intranetResources: "내부 자료",
+    intranetProjects: "프로젝트 현황",
+    intranetMeetings: "회의 기록",
     applications: "행사 신청",
     members: "구성원 권한",
   };
@@ -1863,6 +2063,13 @@ function AdminPanel(props: AdminProps) {
       ) {
         throw new Error("INVALID_RESOURCE_URL");
       }
+      if (
+        name === "intranetProjects" &&
+        value.url &&
+        !safeImageUrl(String(value.url))
+      ) {
+        throw new Error("INVALID_PROJECT_URL");
+      }
       await onSaveEntry(
         name,
         value,
@@ -1875,7 +2082,9 @@ function AdminPanel(props: AdminProps) {
           ? "이미지는 https://로 시작하는 주소를 입력해 주세요."
           : error instanceof Error && error.message === "INVALID_RESOURCE_URL"
             ? "내부 자료는 https://로 시작하는 주소를 입력해 주세요."
-            : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
+            : error instanceof Error && error.message === "INVALID_PROJECT_URL"
+              ? "프로젝트 링크는 https://로 시작하는 주소를 입력해 주세요."
+              : "저장에 실패했습니다. 입력값과 관리자 권한을 확인해 주세요.",
       );
     } finally {
       setSaving(false);
@@ -1941,21 +2150,33 @@ function AdminPanel(props: AdminProps) {
   }
   async function submitMember(event: FormEvent) {
     event.preventDefault();
+    if (!newAdminAccess && !newMemberAccess) {
+      setMessage("관리자 또는 내부자 역할을 하나 이상 선택해 주세요.");
+      return;
+    }
     setSaving(true);
     try {
-      await onSaveMember(memberEmail, memberName);
+      await onSaveMember(memberEmail, memberName, {
+        adminAccess: newAdminAccess,
+        memberAccess: newMemberAccess,
+      });
       setMemberEmail("");
       setMemberName("");
+      setNewAdminAccess(false);
+      setNewMemberAccess(true);
     } catch {
       setMessage("구성원 권한 저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
   }
-  async function toggleMember(member: Member) {
+  async function toggleMemberRole(
+    member: Member,
+    role: "adminAccess" | "memberAccess",
+  ) {
     setSaving(true);
     try {
-      await onSetMemberActive(member, !member.active);
+      await onSetMemberRole(member, role, !member[role]);
     } catch {
       setMessage("구성원 권한 변경에 실패했습니다.");
     } finally {
@@ -2191,8 +2412,9 @@ function AdminPanel(props: AdminProps) {
           <div className="admin-content">
             <form className="admin-form member-form" onSubmit={submitMember}>
               <p className="admin-help">
-                등록된 이메일로 로그인한 계정만 인트라넷을 이용할 수 있습니다.
-                이메일은 Firebase Authentication 계정과 정확히 같아야 합니다.
+                관리자와 내부자 역할을 독립적으로 설정합니다. 관리자는 사이트
+                운영 도구를, 내부자는 인트라넷을 이용합니다. 이메일은 Firebase
+                Authentication 계정과 정확히 같아야 합니다.
               </p>
               <div className="form-grid">
                 <label>
@@ -2215,8 +2437,30 @@ function AdminPanel(props: AdminProps) {
                   />
                 </label>
               </div>
+              <div className="member-role-selector">
+                <label className="admin-check">
+                  <input
+                    type="checkbox"
+                    checked={newAdminAccess}
+                    onChange={(event) =>
+                      setNewAdminAccess(event.target.checked)
+                    }
+                  />{" "}
+                  관리자 역할
+                </label>
+                <label className="admin-check">
+                  <input
+                    type="checkbox"
+                    checked={newMemberAccess}
+                    onChange={(event) =>
+                      setNewMemberAccess(event.target.checked)
+                    }
+                  />{" "}
+                  내부자 역할
+                </label>
+              </div>
               <button className="button button-primary" disabled={saving}>
-                구성원 권한 추가 <ShieldCheck size={17} />
+                계정 역할 저장 <ShieldCheck size={17} />
               </button>
             </form>
             <div className="admin-list member-list">
@@ -2229,29 +2473,47 @@ function AdminPanel(props: AdminProps) {
                   .map((member) => (
                     <article className="admin-row" key={member.id}>
                       <div>
-                        <span
-                          className={
-                            member.active
-                              ? "admin-pill published"
-                              : "admin-pill"
-                          }
-                        >
-                          {member.active ? "권한 활성" : "권한 중지"}
-                        </span>
+                        <div className="member-role-badges">
+                          <span
+                            className={`member-role-badge ${member.adminAccess ? "active" : ""}`}
+                          >
+                            관리자
+                          </span>
+                          <span
+                            className={`member-role-badge ${member.memberAccess ? "active" : ""}`}
+                          >
+                            내부자
+                          </span>
+                        </div>
                         <h3>{member.displayName || "이름 없음"}</h3>
                         <p>{member.email}</p>
                       </div>
                       <div className="admin-row-actions">
                         <button
                           disabled={saving}
-                          onClick={() => toggleMember(member)}
+                          onClick={() =>
+                            toggleMemberRole(member, "adminAccess")
+                          }
                         >
-                          {member.active ? (
+                          {member.adminAccess ? (
                             <EyeOff size={17} />
                           ) : (
                             <Eye size={17} />
                           )}
-                          {member.active ? "권한 중지" : "권한 활성"}
+                          관리자 {member.adminAccess ? "해제" : "부여"}
+                        </button>
+                        <button
+                          disabled={saving}
+                          onClick={() =>
+                            toggleMemberRole(member, "memberAccess")
+                          }
+                        >
+                          {member.memberAccess ? (
+                            <EyeOff size={17} />
+                          ) : (
+                            <Eye size={17} />
+                          )}
+                          내부자 {member.memberAccess ? "해제" : "부여"}
                         </button>
                         {deletingId === `member:${member.id}` ? (
                           <span className="admin-delete-confirm">
@@ -2570,6 +2832,58 @@ function AdminPanel(props: AdminProps) {
                     {textField("category", "분류", true)}
                     {textField("description", "설명", true, true)}
                     {textField("url", "자료 링크 (HTTPS)", true)}
+                  </>
+                )}
+                {tab === "intranetProjects" && (
+                  <>
+                    {textField("title", "프로젝트 이름", true)}
+                    {textField("summary", "현재 상황 요약", true, true)}
+                    {textField("owner", "담당자 또는 팀")}
+                    <label>
+                      진행 상태
+                      <select
+                        value={String(entryDraft.status || "planning")}
+                        onChange={(event) =>
+                          setEntryDraft({
+                            ...entryDraft,
+                            status: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="planning">기획</option>
+                        <option value="active">진행 중</option>
+                        <option value="blocked">확인 필요</option>
+                        <option value="done">완료</option>
+                      </select>
+                    </label>
+                    <label>
+                      진행률 (0–100)
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={Number(entryDraft.progress || 0)}
+                        onChange={(event) =>
+                          setEntryDraft({
+                            ...entryDraft,
+                            progress: Math.max(
+                              0,
+                              Math.min(100, Number(event.target.value)),
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                    {textField("url", "프로젝트 링크 (HTTPS, 선택)")}
+                  </>
+                )}
+                {tab === "intranetMeetings" && (
+                  <>
+                    {textField("title", "회의 제목", true)}
+                    {textField("date", "회의 날짜", true)}
+                    {textField("summary", "회의 요약", true, true)}
+                    {textField("decisions", "결정 사항", false, true)}
+                    {textField("nextActions", "다음 할 일", false, true)}
                   </>
                 )}
                 <label className="admin-check">
