@@ -29,6 +29,7 @@ import {
   ChevronDown,
   CircleHelp,
   Code2,
+  Download,
   LockKeyhole,
   Menu,
   Eye,
@@ -113,6 +114,12 @@ const pageMetadata: Record<string, { title: string; description: string }> = {
 function setMetaTag(selector: string, attribute: string, value: string) {
   const element = document.head.querySelector<HTMLMetaElement>(selector);
   element?.setAttribute(attribute, value);
+}
+
+function csvCell(value: unknown) {
+  let text = String(value ?? "").replace(/\r?\n/g, " ");
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
 }
 const emptyEditors: Record<
   Exclude<CollectionName, "applications">,
@@ -1481,6 +1488,10 @@ function AdminPanel(props: AdminProps) {
   );
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [applicationQuery, setApplicationQuery] = useState("");
+  const [applicationStatus, setApplicationStatus] = useState<
+    "all" | Application["status"]
+  >("all");
   const collections: Record<
     Exclude<CollectionName, "applications">,
     Entry[]
@@ -1494,6 +1505,28 @@ function AdminPanel(props: AdminProps) {
     events: "행사",
     applications: "행사 신청",
   };
+  const filteredApplications = useMemo(() => {
+    const term = applicationQuery.trim().toLocaleLowerCase("ko-KR");
+    return [...applications]
+      .filter(
+        (item) =>
+          applicationStatus === "all" || item.status === applicationStatus,
+      )
+      .filter((item) => {
+        if (!term) return true;
+        const eventTitle =
+          events.find((event) => event.id === item.eventId)?.title ||
+          item.eventId;
+        return [item.name, item.email, item.phone, eventTitle].some((value) =>
+          value.toLocaleLowerCase("ko-KR").includes(term),
+        );
+      })
+      .sort(
+        (a, b) =>
+          (b.createdAt?.toDate()?.getTime() || 0) -
+          (a.createdAt?.toDate()?.getTime() || 0),
+      );
+  }, [applicationQuery, applicationStatus, applications, events]);
 
   function changeTab(next: AdminTab) {
     setTab(next);
@@ -1594,6 +1627,37 @@ function AdminPanel(props: AdminProps) {
     } finally {
       setSaving(false);
     }
+  }
+  function exportApplications() {
+    const headings = [
+      "상태",
+      "이름",
+      "이메일",
+      "연락처",
+      "행사",
+      "신청 동기",
+      "접수 일시",
+    ];
+    const rows = filteredApplications.map((item) => [
+      item.status,
+      item.name,
+      item.email,
+      item.phone,
+      events.find((event) => event.id === item.eventId)?.title || item.eventId,
+      item.motivation,
+      item.createdAt?.toDate()?.toLocaleString("ko-KR") || "",
+    ]);
+    const csv = [headings, ...rows]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\r\n");
+    const url = URL.createObjectURL(
+      new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `geek-byte-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
   const textField = (
     key: string,
@@ -1784,14 +1848,48 @@ function AdminPanel(props: AdminProps) {
               신청자의 개인정보가 포함되어 있습니다. 업무 목적 외 공유하지
               마세요.
             </p>
+            <div className="application-toolbar">
+              <label>
+                <span>신청 검색</span>
+                <input
+                  type="search"
+                  value={applicationQuery}
+                  onChange={(event) => setApplicationQuery(event.target.value)}
+                  placeholder="이름, 이메일, 연락처, 행사"
+                />
+              </label>
+              <label>
+                <span>상태</span>
+                <select
+                  value={applicationStatus}
+                  onChange={(event) =>
+                    setApplicationStatus(
+                      event.target.value as "all" | Application["status"],
+                    )
+                  }
+                >
+                  <option value="all">전체 상태</option>
+                  <option value="new">신규</option>
+                  <option value="reviewing">검토 중</option>
+                  <option value="accepted">승인</option>
+                  <option value="declined">거절</option>
+                </select>
+              </label>
+              <button
+                className="button button-ghost"
+                disabled={!filteredApplications.length}
+                onClick={exportApplications}
+              >
+                <Download size={16} /> CSV 내보내기
+              </button>
+            </div>
+            <p className="application-count" role="status">
+              전체 {applications.length}건 중 {filteredApplications.length}건
+              표시
+            </p>
             {applications.length ? (
-              [...applications]
-                .sort(
-                  (a, b) =>
-                    (b.createdAt?.toDate()?.getTime() || 0) -
-                    (a.createdAt?.toDate()?.getTime() || 0),
-                )
-                .map((item) => (
+              filteredApplications.length ? (
+                filteredApplications.map((item) => (
                   <article className="application-record" key={item.id}>
                     <div>
                       <span className="admin-pill">{item.status}</span>
@@ -1858,6 +1956,9 @@ function AdminPanel(props: AdminProps) {
                     </div>
                   </article>
                 ))
+              ) : (
+                <p className="admin-empty">검색 조건에 맞는 신청이 없습니다.</p>
+              )
             ) : (
               <p className="admin-empty">아직 접수된 신청이 없습니다.</p>
             )}
