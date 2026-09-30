@@ -446,6 +446,17 @@ test("published chat channels support secure member group messaging", async () =
       readAt: serverTimestamp(),
     }),
   );
+  const ownReadStates = await assertSucceeds(
+    getDocs(
+      query(
+        collection(member, "messageReadStates"),
+        where("userId", "==", "chat-member"),
+        where("scope", "==", "group"),
+      ),
+    ),
+  );
+  if (ownReadStates.size !== 1)
+    throw new Error("Expected one group chat read state");
   await assertFails(
     setDoc(doc(member, "chatChannels", "general", "messages", "spoof"), {
       authorUid: "chat-member",

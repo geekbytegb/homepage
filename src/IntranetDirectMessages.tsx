@@ -16,6 +16,7 @@ import {
 import {
   LockKeyhole,
   MessageCircle,
+  Search,
   Send,
   Trash2,
   UserRound,
@@ -28,10 +29,23 @@ import type {
 } from "./types";
 import { useMessageUnread } from "./useMessageUnread";
 
-function messageTime(message: DirectMessage) {
+function directMessageDate(message: DirectMessage) {
   const date = message.createdAt?.toDate?.();
-  if (!(date instanceof Date) || !Number.isFinite(date.getTime()))
-    return "전송 중";
+  return date instanceof Date && Number.isFinite(date.getTime()) ? date : null;
+}
+
+function directDateLabel(date: Date) {
+  return new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(date);
+}
+
+function messageTime(message: DirectMessage) {
+  const date = directMessageDate(message);
+  if (!date) return "전송 중";
   return new Intl.DateTimeFormat("ko-KR", {
     hour: "2-digit",
     minute: "2-digit",
@@ -56,6 +70,8 @@ export function IntranetDirectMessages({
   const [selectedId, setSelectedId] = useState("");
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [contactQuery, setContactQuery] = useState("");
+  const [messageQuery, setMessageQuery] = useState("");
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -145,13 +161,17 @@ export function IntranetDirectMessages({
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages, selectedId]);
 
-  const contacts = useMemo(
-    () =>
-      identities
-        .filter((identity) => identity.uid !== user.uid)
-        .sort((a, b) => a.displayName.localeCompare(b.displayName, "ko-KR")),
-    [identities, user.uid],
-  );
+  const contacts = useMemo(() => {
+    const term = contactQuery.trim().toLocaleLowerCase("ko-KR");
+    return identities
+      .filter(
+        (identity) =>
+          identity.uid !== user.uid &&
+          (!term ||
+            identity.displayName.toLocaleLowerCase("ko-KR").includes(term)),
+      )
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, "ko-KR"));
+  }, [contactQuery, identities, user.uid]);
   const identityMap = useMemo(
     () => new Map(identities.map((identity) => [identity.uid, identity])),
     [identities],
@@ -165,6 +185,17 @@ export function IntranetDirectMessages({
   const selectedName = selectedOtherUid
     ? identityMap.get(selectedOtherUid)?.displayName || "구성원"
     : "개인 대화";
+  const filteredMessages = useMemo(() => {
+    const term = messageQuery.trim().toLocaleLowerCase("ko-KR");
+    if (!term) return messages;
+    return messages.filter((message) =>
+      [message.authorName, message.text].some((value) =>
+        value.toLocaleLowerCase("ko-KR").includes(term),
+      ),
+    );
+  }, [messageQuery, messages]);
+
+  useEffect(() => setMessageQuery(""), [selectedId]);
 
   async function openConversation(contact: MemberIdentity) {
     if (!db) return;
@@ -240,6 +271,16 @@ export function IntranetDirectMessages({
       <div className="dm-shell">
         <aside className="dm-contact-list" aria-label="개인 대화 상대">
           <strong>구성원</strong>
+          <label className="messenger-search messenger-contact-search">
+            <Search size={13} />
+            <input
+              aria-label="개인 대화 상대 검색"
+              onChange={(event) => setContactQuery(event.target.value)}
+              placeholder="구성원 검색"
+              type="search"
+              value={contactQuery}
+            />
+          </label>
           {contacts.length ? (
             contacts.map((contact) => {
               const conversationId = [user.uid, contact.uid].sort().join("--");
@@ -274,7 +315,11 @@ export function IntranetDirectMessages({
               );
             })
           ) : (
-            <p>인트라넷에 접속한 다른 구성원이 표시됩니다.</p>
+            <p>
+              {contactQuery
+                ? "검색 결과가 없습니다."
+                : "인트라넷에 접속한 다른 구성원이 표시됩니다."}
+            </p>
           )}
         </aside>
         <div className="dm-main">
@@ -283,60 +328,91 @@ export function IntranetDirectMessages({
               <header className="dm-header">
                 <UserRound size={17} />
                 <strong>{selectedName}</strong>
+                <label className="messenger-search">
+                  <Search size={13} />
+                  <input
+                    aria-label={`${selectedName}님과의 메시지 검색`}
+                    onChange={(event) => setMessageQuery(event.target.value)}
+                    placeholder="대화 검색"
+                    type="search"
+                    value={messageQuery}
+                  />
+                </label>
                 <span>1:1 대화</span>
               </header>
               <div className="dm-messages" aria-live="polite">
-                {messages.length ? (
-                  messages.map((message) => {
+                {filteredMessages.length ? (
+                  filteredMessages.map((message, index) => {
                     const own = message.authorUid === user.uid;
+                    const createdAt = directMessageDate(message);
+                    const previousDate =
+                      index > 0
+                        ? directMessageDate(filteredMessages[index - 1])
+                        : null;
+                    const showDate =
+                      createdAt &&
+                      (!previousDate ||
+                        createdAt.toDateString() !==
+                          previousDate.toDateString());
                     return (
-                      <article
-                        className={`chat-message ${own ? "own" : ""}`}
-                        key={message.id}
-                      >
-                        {!own && (
-                          <span className="chat-avatar" aria-hidden="true">
-                            {message.authorName.trim().slice(0, 1) || "G"}
-                          </span>
-                        )}
-                        <div className="chat-message-content">
-                          {!own && <strong>{message.authorName}</strong>}
-                          <div className="chat-bubble-row">
-                            <p>{message.text}</p>
-                            <time>{messageTime(message)}</time>
+                      <div key={message.id}>
+                        {showDate && (
+                          <div className="chat-date-separator">
+                            <span>{directDateLabel(createdAt)}</span>
                           </div>
-                          {own && (
-                            <div className="chat-message-actions">
-                              {confirmDeleteId === message.id ? (
-                                <>
-                                  <span>삭제할까요?</span>
-                                  <button
-                                    onClick={() => removeMessage(message.id)}
-                                    type="button"
-                                  >
-                                    삭제
-                                  </button>
-                                  <button
-                                    onClick={() => setConfirmDeleteId(null)}
-                                    type="button"
-                                  >
-                                    취소
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => setConfirmDeleteId(message.id)}
-                                  type="button"
-                                >
-                                  <Trash2 size={12} /> 삭제
-                                </button>
-                              )}
-                            </div>
+                        )}
+                        <article className={`chat-message ${own ? "own" : ""}`}>
+                          {!own && (
+                            <span className="chat-avatar" aria-hidden="true">
+                              {message.authorName.trim().slice(0, 1) || "G"}
+                            </span>
                           )}
-                        </div>
-                      </article>
+                          <div className="chat-message-content">
+                            {!own && <strong>{message.authorName}</strong>}
+                            <div className="chat-bubble-row">
+                              <p>{message.text}</p>
+                              <time>{messageTime(message)}</time>
+                            </div>
+                            {own && (
+                              <div className="chat-message-actions">
+                                {confirmDeleteId === message.id ? (
+                                  <>
+                                    <span>삭제할까요?</span>
+                                    <button
+                                      onClick={() => removeMessage(message.id)}
+                                      type="button"
+                                    >
+                                      삭제
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmDeleteId(null)}
+                                      type="button"
+                                    >
+                                      취소
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() =>
+                                      setConfirmDeleteId(message.id)
+                                    }
+                                    type="button"
+                                  >
+                                    <Trash2 size={12} /> 삭제
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </article>
+                      </div>
                     );
                   })
+                ) : messages.length ? (
+                  <div className="chat-empty">
+                    <Search size={27} />
+                    <strong>검색 결과가 없습니다.</strong>
+                  </div>
                 ) : (
                   <div className="chat-empty">
                     <MessageCircle size={27} />

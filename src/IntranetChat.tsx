@@ -15,6 +15,7 @@ import {
   Hash,
   Megaphone,
   MessageCircle,
+  Search,
   Send,
   Settings2,
   Trash2,
@@ -75,6 +76,7 @@ export function IntranetChat({
   const [selectedId, setSelectedId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [messageQuery, setMessageQuery] = useState("");
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -104,6 +106,17 @@ export function IntranetChat({
     () => channels.find((channel) => channel.id === selectedId) || null,
     [channels, selectedId],
   );
+  const filteredMessages = useMemo(() => {
+    const term = messageQuery.trim().toLocaleLowerCase("ko-KR");
+    if (!term) return messages;
+    return messages.filter((message) =>
+      [message.authorName, message.text].some((value) =>
+        value.toLocaleLowerCase("ko-KR").includes(term),
+      ),
+    );
+  }, [messageQuery, messages]);
+
+  useEffect(() => setMessageQuery(""), [selectedId]);
 
   useEffect(() => {
     if (!db || !selectedId) {
@@ -239,6 +252,16 @@ export function IntranetChat({
                   )}
                   <strong>{selectedChannel.name}</strong>
                 </div>
+                <label className="messenger-search">
+                  <Search size={14} />
+                  <input
+                    aria-label={`${selectedChannel.name} 메시지 검색`}
+                    onChange={(event) => setMessageQuery(event.target.value)}
+                    placeholder="현재 채널 검색"
+                    type="search"
+                    value={messageQuery}
+                  />
+                </label>
                 <span>
                   {selectedChannel.kind === "announcement"
                     ? "관리자 공지 전용"
@@ -246,11 +269,13 @@ export function IntranetChat({
                 </span>
               </header>
               <div className="chat-messages" aria-live="polite">
-                {messages.length ? (
-                  messages.map((message, index) => {
+                {filteredMessages.length ? (
+                  filteredMessages.map((message, index) => {
                     const createdAt = messageDate(message);
                     const previousDate =
-                      index > 0 ? messageDate(messages[index - 1]) : null;
+                      index > 0
+                        ? messageDate(filteredMessages[index - 1])
+                        : null;
                     const showDate =
                       createdAt &&
                       (!previousDate ||
@@ -312,6 +337,12 @@ export function IntranetChat({
                       </div>
                     );
                   })
+                ) : messages.length ? (
+                  <div className="chat-empty">
+                    <Search size={28} />
+                    <strong>검색 결과가 없습니다.</strong>
+                    <p>작성자 이름이나 메시지 내용으로 다시 검색해 보세요.</p>
+                  </div>
                 ) : (
                   <div className="chat-empty">
                     <MessageCircle size={28} />
