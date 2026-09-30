@@ -908,6 +908,14 @@ select:focus-visible {
   padding: 8px 11px;
   background: #202532;
 }
+.my-application-list article > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  gap: 18px;
+}
 .my-application-list strong {
   font-size: 12px;
 }
@@ -922,6 +930,32 @@ select:focus-visible {
 }
 .application-status.declined {
   color: #ffadaf;
+}
+.application-status.cancelled {
+  color: #9ba3b3;
+}
+.application-cancel,
+.application-cancel-confirm button {
+  flex: none;
+  border: 1px solid #485064;
+  background: transparent;
+  color: #adb5c8;
+  padding: 7px 9px;
+  font-size: 10px;
+}
+.application-cancel:hover,
+.application-cancel-confirm button:hover {
+  border-color: #7887cc;
+  color: #fff;
+}
+.application-cancel-confirm {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+.application-cancel-confirm button:first-child {
+  border-color: #7b4c55;
+  color: #ffb5b8;
 }
 .event-card {
   background: #1b1f2b;
@@ -1690,6 +1724,10 @@ button.admin-dashboard-row:hover {
   background: #3d3823;
   color: #f2d88f;
 }
+.admin-pill.cancelled {
+  background: #303541;
+  color: #aeb6c7;
+}
 .admin-empty {
   border: 1px dashed #454c5f;
   padding: 35px;
@@ -2332,6 +2370,13 @@ button.admin-dashboard-row:hover {
   .my-applications {
     grid-template-columns: 1fr;
     margin-top: -10px;
+  }
+  .my-application-list article {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .my-application-list article > div {
+    width: 100%;
   }
   .product-art {
     height: 300px;

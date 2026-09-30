@@ -120,7 +120,13 @@ service cloud.firestore {
         && request.resource.data.consent == true
         && request.resource.data.status == 'new'
         && request.resource.data.createdAt == request.time;
-      allow update, delete: if admin();
+      allow update: if admin()
+        || (signedIn()
+          && resource.data.userId == request.auth.uid
+          && resource.data.status in ['new', 'reviewing']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'cancelled');
+      allow delete: if admin();
     }
     match /{document=**} { allow read, write: if false; }
   }

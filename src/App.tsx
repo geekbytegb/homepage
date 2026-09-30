@@ -138,6 +138,7 @@ const applicationStatusLabels: Record<Application["status"], string> = {
   reviewing: "검토 중",
   accepted: "승인",
   declined: "미선정",
+  cancelled: "신청 취소",
 };
 
 function setMetaTag(selector: string, attribute: string, value: string) {
@@ -290,6 +291,9 @@ function App() {
   const [savingApplication, setSavingApplication] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
   const [myApplications, setMyApplications] = useState<Application[]>([]);
+  const [cancelApplicationId, setCancelApplicationId] = useState<string | null>(
+    null,
+  );
   const [members, setMembers] = useState<Member[]>([]);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
   const [adminMessage, setAdminMessage] = useState("");
@@ -727,6 +731,27 @@ function App() {
     } catch {
       setApplicationMessage(
         "신청을 저장하지 못했습니다. 이미 신청했거나 접수가 마감되었는지 확인해 주세요.",
+      );
+    } finally {
+      setSavingApplication(false);
+    }
+  }
+
+  async function cancelOwnApplication(application: Application) {
+    if (!db || !user || application.userId !== user.uid) return;
+    setSavingApplication(true);
+    setApplicationMessage("");
+    try {
+      const batch = writeBatch(db);
+      batch.update(doc(db, "applications", application.id), {
+        status: "cancelled",
+      });
+      await batch.commit();
+      setCancelApplicationId(null);
+      setApplicationMessage("신청을 취소했습니다.");
+    } catch {
+      setApplicationMessage(
+        "신청을 취소하지 못했습니다. 이미 처리된 신청인지 확인해 주세요.",
       );
     } finally {
       setSavingApplication(false);
@@ -1324,16 +1349,47 @@ function App() {
                     <div className="my-application-list">
                       {myApplications.map((application) => (
                         <article key={application.id}>
-                          <strong>
-                            {events.items.find(
-                              (event) => event.id === application.eventId,
-                            )?.title || application.eventId}
-                          </strong>
-                          <span
-                            className={`application-status ${application.status}`}
-                          >
-                            {applicationStatusLabels[application.status]}
-                          </span>
+                          <div>
+                            <strong>
+                              {events.items.find(
+                                (event) => event.id === application.eventId,
+                              )?.title || application.eventId}
+                            </strong>
+                            <span
+                              className={`application-status ${application.status}`}
+                            >
+                              {applicationStatusLabels[application.status]}
+                            </span>
+                          </div>
+                          {(application.status === "new" ||
+                            application.status === "reviewing") &&
+                            (cancelApplicationId === application.id ? (
+                              <span className="application-cancel-confirm">
+                                <button
+                                  disabled={savingApplication}
+                                  onClick={() =>
+                                    cancelOwnApplication(application)
+                                  }
+                                >
+                                  취소 확정
+                                </button>
+                                <button
+                                  disabled={savingApplication}
+                                  onClick={() => setCancelApplicationId(null)}
+                                >
+                                  돌아가기
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                className="application-cancel"
+                                onClick={() =>
+                                  setCancelApplicationId(application.id)
+                                }
+                              >
+                                신청 취소
+                              </button>
+                            ))}
                         </article>
                       ))}
                     </div>
@@ -3005,6 +3061,7 @@ function AdminPanel(props: AdminProps) {
                   <option value="reviewing">검토 중</option>
                   <option value="accepted">승인</option>
                   <option value="declined">미선정</option>
+                  <option value="cancelled">신청 취소</option>
                 </select>
               </label>
               <button
@@ -3061,6 +3118,7 @@ function AdminPanel(props: AdminProps) {
                         <option value="reviewing">검토 중</option>
                         <option value="accepted">승인</option>
                         <option value="declined">미선정</option>
+                        <option value="cancelled">신청 취소</option>
                       </select>
                       {deletingId === `application:${item.id}` ? (
                         <span className="admin-delete-confirm">

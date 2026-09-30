@@ -284,6 +284,16 @@ test("applicants can create only their own initial application once", async () =
       status: "accepted",
     }),
   );
+  await assertSucceeds(
+    updateDoc(doc(store, "applications", "student_event1"), {
+      status: "cancelled",
+    }),
+  );
+  await assertFails(
+    updateDoc(doc(store, "applications", "student_event1"), {
+      status: "new",
+    }),
+  );
   await assertFails(getDocs(collection(store, "applications")));
 });
 

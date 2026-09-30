@@ -85,7 +85,7 @@ export type Application = {
   phone: string;
   motivation: string;
   consent: boolean;
-  status: "new" | "reviewing" | "accepted" | "declined";
+  status: "new" | "reviewing" | "accepted" | "declined" | "cancelled";
   createdAt?: { toDate: () => Date };
 };
 export type Member = {
