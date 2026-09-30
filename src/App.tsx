@@ -128,6 +128,12 @@ const pageMetadata: Record<string, { title: string; description: string }> = {
     description: "요청한 Geek Byte 페이지를 찾을 수 없습니다.",
   },
 };
+const applicationStatusLabels: Record<Application["status"], string> = {
+  new: "접수 완료",
+  reviewing: "검토 중",
+  accepted: "승인",
+  declined: "미선정",
+};
 
 function setMetaTag(selector: string, attribute: string, value: string) {
   const element = document.head.querySelector<HTMLMetaElement>(selector);
@@ -278,6 +284,7 @@ function App() {
   const [applicationMessage, setApplicationMessage] = useState("");
   const [savingApplication, setSavingApplication] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [myApplications, setMyApplications] = useState<Application[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [auditLogs, setAuditLogs] = useState<AdminAuditLog[]>([]);
   const [adminMessage, setAdminMessage] = useState("");
@@ -432,6 +439,27 @@ function App() {
   }, [isAdmin]);
 
   useEffect(() => {
+    if (!db || !user) {
+      setMyApplications([]);
+      return;
+    }
+    const ownApplications = query(
+      collection(db, "applications"),
+      where("userId", "==", user.uid),
+    );
+    return onSnapshot(
+      ownApplications,
+      (snapshot) =>
+        setMyApplications(
+          snapshot.docs.map(
+            (item) => ({ id: item.id, ...item.data() }) as Application,
+          ),
+        ),
+      () => setApplicationMessage("내 신청 내역을 불러오지 못했습니다."),
+    );
+  }, [user]);
+
+  useEffect(() => {
     if (!db || !isAdmin) {
       setMembers([]);
       return;
@@ -482,6 +510,10 @@ function App() {
   const visibleEvents = useMemo(
     () => events.items.filter((x) => x.published),
     [events.items],
+  );
+  const applicationsByEvent = useMemo(
+    () => new Map(myApplications.map((item) => [item.eventId, item])),
+    [myApplications],
   );
   const visibleIntranetNotices = useMemo(
     () =>
@@ -1275,49 +1307,91 @@ function App() {
                     새로운 관점을 발견하고, 경험을 나누며, 사람과 연결됩니다.
                   </p>
                 </div>
+                {user && myApplications.length > 0 && (
+                  <section
+                    className="my-applications"
+                    aria-labelledby="my-applications-title"
+                  >
+                    <div>
+                      <span>MY APPLICATIONS</span>
+                      <h3 id="my-applications-title">내 신청 현황</h3>
+                    </div>
+                    <div className="my-application-list">
+                      {myApplications.map((application) => (
+                        <article key={application.id}>
+                          <strong>
+                            {events.items.find(
+                              (event) => event.id === application.eventId,
+                            )?.title || application.eventId}
+                          </strong>
+                          <span
+                            className={`application-status ${application.status}`}
+                          >
+                            {applicationStatusLabels[application.status]}
+                          </span>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                )}
                 <div className="event-grid">
                   {visibleEvents.length ? (
-                    visibleEvents.map((event, i) => (
-                      <article className="event-card" key={event.id}>
-                        <div className="event-top">
-                          <span className="event-number">
-                            EVENT / {String(i + 1).padStart(2, "0")}
+                    visibleEvents.map((event, i) => {
+                      const application = applicationsByEvent.get(event.id);
+                      return (
+                        <article className="event-card" key={event.id}>
+                          <div className="event-top">
+                            <span className="event-number">
+                              EVENT / {String(i + 1).padStart(2, "0")}
+                            </span>
+                            <span
+                              className={
+                                event.registrationOpen
+                                  ? "event-badge"
+                                  : "event-badge closed"
+                              }
+                            >
+                              {event.registrationOpen ? "모집 중" : "모집 마감"}
+                            </span>
+                          </div>
+                          <span className="event-category">
+                            {event.category}
                           </span>
-                          <span
-                            className={
-                              event.registrationOpen
-                                ? "event-badge"
-                                : "event-badge closed"
+                          <h3>{event.title}</h3>
+                          <p>{event.description}</p>
+                          <div className="event-info">
+                            <span>{event.schedule || "일정 추후 안내"}</span>
+                            <span>{event.location || event.format}</span>
+                            {event.capacity && (
+                              <span>정원 {event.capacity}</span>
+                            )}
+                          </div>
+                          {event.registrationDeadline && (
+                            <span className="event-deadline">
+                              신청 마감 {event.registrationDeadline}
+                            </span>
+                          )}
+                          <button
+                            className="event-button"
+                            disabled={
+                              !event.registrationOpen || Boolean(application)
                             }
+                            onClick={() => openApplication(event)}
                           >
-                            {event.registrationOpen ? "모집 중" : "모집 마감"}
-                          </span>
-                        </div>
-                        <span className="event-category">{event.category}</span>
-                        <h3>{event.title}</h3>
-                        <p>{event.description}</p>
-                        <div className="event-info">
-                          <span>{event.schedule || "일정 추후 안내"}</span>
-                          <span>{event.location || event.format}</span>
-                          {event.capacity && <span>정원 {event.capacity}</span>}
-                        </div>
-                        {event.registrationDeadline && (
-                          <span className="event-deadline">
-                            신청 마감 {event.registrationDeadline}
-                          </span>
-                        )}
-                        <button
-                          className="event-button"
-                          disabled={!event.registrationOpen}
-                          onClick={() => openApplication(event)}
-                        >
-                          {event.registrationOpen
-                            ? "행사 신청하기"
-                            : "신청 마감"}{" "}
-                          <ArrowUpRight size={18} />
-                        </button>
-                      </article>
-                    ))
+                            {application
+                              ? applicationStatusLabels[application.status]
+                              : event.registrationOpen
+                                ? "행사 신청하기"
+                                : "신청 마감"}{" "}
+                            {application ? (
+                              <Check size={18} />
+                            ) : (
+                              <ArrowUpRight size={18} />
+                            )}
+                          </button>
+                        </article>
+                      );
+                    })
                   ) : (
                     <div className="empty-panel events-empty">
                       <span className="empty-icon">

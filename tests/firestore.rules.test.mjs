@@ -258,6 +258,17 @@ test("applicants can create only their own initial application once", async () =
     setDoc(doc(store, "applications", "student_event1"), payload),
   );
   await assertSucceeds(getDoc(doc(store, "applications", "student_event1")));
+  const ownApplications = await assertSucceeds(
+    getDocs(
+      query(
+        collection(store, "applications"),
+        where("userId", "==", "student"),
+      ),
+    ),
+  );
+  if (ownApplications.size !== 1) {
+    throw new Error("Unexpected own application count");
+  }
   await assertFails(
     getDoc(
       doc(

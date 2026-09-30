@@ -876,6 +876,53 @@ select:focus-visible {
 .events-heading p {
   color: #9ea3b1;
 }
+.my-applications {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 24px;
+  margin: -25px 0 35px;
+  padding: 22px;
+  border: 1px solid #343949;
+  background: #191d27;
+}
+.my-applications > div:first-child > span {
+  color: #8495ef;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.my-applications h3 {
+  margin: 7px 0 0;
+  font-size: 17px;
+}
+.my-application-list {
+  display: grid;
+  gap: 8px;
+}
+.my-application-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 39px;
+  padding: 8px 11px;
+  background: #202532;
+}
+.my-application-list strong {
+  font-size: 12px;
+}
+.application-status {
+  flex: none;
+  color: #bac4ff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.application-status.accepted {
+  color: #9ce2b7;
+}
+.application-status.declined {
+  color: #ffadaf;
+}
 .event-card {
   background: #1b1f2b;
   border: 1px solid #343949;
@@ -958,6 +1005,10 @@ select:focus-visible {
 .event-button:hover:not(:disabled) {
   background: #5a70fc;
   color: #fff;
+}
+.event-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 .events-empty {
   background: #1b1f2b;
@@ -2089,6 +2140,10 @@ select:focus-visible {
   .product-grid,
   .event-grid {
     grid-template-columns: 1fr;
+  }
+  .my-applications {
+    grid-template-columns: 1fr;
+    margin-top: -10px;
   }
   .product-art {
     height: 300px;
