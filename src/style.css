@@ -1625,8 +1625,15 @@ select:focus-visible {
   font-size: 13px;
   line-height: 1.75;
 }
-.admin-dashboard-intro .button {
+.admin-dashboard-actions {
+  display: flex;
   flex: none;
+  flex-direction: column;
+  gap: 9px;
+}
+.admin-dashboard-actions .button {
+  flex: none;
+  justify-content: center;
 }
 .admin-stat-grid {
   display: grid;
@@ -2694,6 +2701,9 @@ button.admin-dashboard-row:hover {
     align-items: flex-start;
     flex-direction: column;
     padding: 22px;
+  }
+  .admin-dashboard-actions {
+    width: 100%;
   }
   .admin-stat-grid {
     grid-template-columns: 1fr;

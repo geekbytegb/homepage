@@ -2793,6 +2793,30 @@ function AdminPanel(props: AdminProps) {
     link.click();
     URL.revokeObjectURL(url);
   }
+  function exportContentBackup() {
+    const backup = {
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      site: { overview, privacy },
+      publicContent: { history, notices, products, events },
+      intranetContent: {
+        notices: intranetNotices,
+        resources: intranetResources,
+        projects: intranetProjects,
+        meetings: intranetMeetings,
+      },
+    };
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(backup, null, 2)], {
+        type: "application/json;charset=utf-8",
+      }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `geek-byte-content-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
   const textField = (
     key: string,
     label: string,
@@ -2889,12 +2913,20 @@ function AdminPanel(props: AdminProps) {
                   한곳에서 확인합니다.
                 </p>
               </div>
-              <button
-                className="button button-primary"
-                onClick={() => changeTab("auditLogs")}
-              >
-                최근 활동 보기 <ArrowRight size={17} />
-              </button>
+              <div className="admin-dashboard-actions">
+                <button
+                  className="button button-primary"
+                  onClick={() => changeTab("auditLogs")}
+                >
+                  최근 활동 보기 <ArrowRight size={17} />
+                </button>
+                <button
+                  className="button button-ghost"
+                  onClick={exportContentBackup}
+                >
+                  콘텐츠 백업 <Download size={16} />
+                </button>
+              </div>
             </div>
             <div className="admin-stat-grid">
               {dashboardStats.map((stat) => (
