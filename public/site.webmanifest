@@ -1,0 +1,16 @@
+{
+  "name": "Geek Byte",
+  "short_name": "Geek Byte",
+  "description": "아이디어를 제품과 경험으로 연결하는 기술 팀",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0b11",
+  "theme_color": "#0a0b11",
+  "icons": [
+    {
+      "src": "/geek-byte-logo.png",
+      "sizes": "any",
+      "type": "image/png"
+    }
+  ]
+}

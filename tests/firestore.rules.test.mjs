@@ -7,6 +7,7 @@ import {
 } from "@firebase/rules-unit-testing";
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -89,6 +90,21 @@ test("an admin claim grants content write and application read access", async ()
     }),
   );
   await assertSucceeds(getDocs(collection(store, "applications")));
+  await assertSucceeds(deleteDoc(doc(store, "notices", "draft")));
+});
+
+test("only an admin can delete application records", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), "applications", "delete-test"), {
+      userId: "student",
+    });
+  });
+  const applicant = environment.authenticatedContext("student").firestore();
+  await assertFails(deleteDoc(doc(applicant, "applications", "delete-test")));
+  const admin = environment
+    .authenticatedContext("admin", { admin: true })
+    .firestore();
+  await assertSucceeds(deleteDoc(doc(admin, "applications", "delete-test")));
 });
 
 test("applicants can create only their own initial application once", async () => {

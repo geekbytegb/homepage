@@ -12,6 +12,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   query,
@@ -30,9 +31,12 @@ import {
   Code2,
   LockKeyhole,
   Menu,
+  Eye,
+  EyeOff,
   Plus,
   ShieldCheck,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { auth, configured, db } from "./firebase";
@@ -49,7 +53,7 @@ import {
   type Privacy,
   type Product,
 } from "./types";
-import logo from "../Geek Byte Logo.png";
+const logo = "/geek-byte-logo.png";
 
 type CollectionName =
   "history" | "notices" | "products" | "events" | "applications";
@@ -74,6 +78,41 @@ function safeHttpUrl(value: string) {
 function safeImageUrl(value: string) {
   const url = safeHttpUrl(value);
   return url?.startsWith("https://") ? url : null;
+}
+const pageMetadata: Record<string, { title: string; description: string }> = {
+  "/": {
+    title: "Geek Byte — Build what matters.",
+    description: "아이디어를 제품과 경험으로 연결하는 기술 팀 Geek Byte입니다.",
+  },
+  "/about": {
+    title: "팀 소개 | Geek Byte",
+    description: "Geek Byte의 가치와 시작부터 현재까지의 발자취를 소개합니다.",
+  },
+  "/products": {
+    title: "제품·서비스 | Geek Byte",
+    description: "Geek Byte가 만들고 운영하는 제품과 서비스를 확인하세요.",
+  },
+  "/notices": {
+    title: "소식 | Geek Byte",
+    description: "Geek Byte의 새로운 소식과 주요 공지를 확인하세요.",
+  },
+  "/events": {
+    title: "행사 | Geek Byte",
+    description: "Geek Byte의 강연, 세미나, 워크숍과 다양한 행사에 참여하세요.",
+  },
+  "/contact": {
+    title: "문의 | Geek Byte",
+    description: "협업과 제안, Geek Byte에 관한 문의를 시작하세요.",
+  },
+  "/404": {
+    title: "페이지를 찾을 수 없습니다 | Geek Byte",
+    description: "요청한 Geek Byte 페이지를 찾을 수 없습니다.",
+  },
+};
+
+function setMetaTag(selector: string, attribute: string, value: string) {
+  const element = document.head.querySelector<HTMLMetaElement>(selector);
+  element?.setAttribute(attribute, value);
 }
 const emptyEditors: Record<
   Exclude<CollectionName, "applications">,
@@ -171,6 +210,9 @@ function App() {
   const [savingApplication, setSavingApplication] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
   const [adminMessage, setAdminMessage] = useState("");
+  const [failedProductImages, setFailedProductImages] = useState<Set<string>>(
+    new Set(),
+  );
 
   const history = useEntries<HistoryItem>(
     "history",
@@ -266,6 +308,16 @@ function App() {
     () => events.items.filter((x) => x.published),
     [events.items],
   );
+  const contentError =
+    page === "/about"
+      ? history.error
+      : page === "/products"
+        ? products.error
+        : page === "/notices"
+          ? notices.error
+          : page === "/events"
+            ? events.error
+            : "";
   const privacyReady = Boolean(
     privacy.published &&
     privacy.operator &&
@@ -277,17 +329,72 @@ function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
     setMenuOpen(false);
-    const titles: Record<string, string> = {
-      "/": "Geek Byte — Build what matters.",
-      "/about": "팀 소개 | Geek Byte",
-      "/products": "제품·서비스 | Geek Byte",
-      "/notices": "소식 | Geek Byte",
-      "/events": "행사 | Geek Byte",
-      "/contact": "문의 | Geek Byte",
-      "/404": "페이지를 찾을 수 없습니다 | Geek Byte",
-    };
-    document.title = titles[page];
+    const metadata = pageMetadata[page];
+    const canonicalUrl =
+      page === "/404"
+        ? `https://geekbyte.kro.kr${normalizedPath}`
+        : `https://geekbyte.kro.kr${page === "/" ? "/" : `${page}/`}`;
+    document.title = metadata.title;
+    setMetaTag(
+      'meta[name="robots"]',
+      "content",
+      page === "/404" ? "noindex,follow" : "index,follow",
+    );
+    setMetaTag('meta[name="description"]', "content", metadata.description);
+    setMetaTag('meta[property="og:title"]', "content", metadata.title);
+    setMetaTag(
+      'meta[property="og:description"]',
+      "content",
+      metadata.description,
+    );
+    setMetaTag('meta[property="og:url"]', "content", canonicalUrl);
+    setMetaTag('meta[name="twitter:title"]', "content", metadata.title);
+    setMetaTag(
+      'meta[name="twitter:description"]',
+      "content",
+      metadata.description,
+    );
+    document.head
+      .querySelector<HTMLLinkElement>('link[rel="canonical"]')
+      ?.setAttribute("href", canonicalUrl);
   }, [page, normalizedPath]);
+
+  useEffect(() => {
+    const modalOpen = loginOpen || privacyOpen || Boolean(selectedEvent);
+    if (!modalOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+    const focusable = dialog?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    );
+    const first = focusable?.[0];
+    const last = focusable?.[focusable.length - 1];
+    if (!dialog?.contains(document.activeElement)) first?.focus();
+    document.body.style.overflow = "hidden";
+    const closeTopModal = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (selectedEvent) setSelectedEvent(null);
+        else if (privacyOpen) setPrivacyOpen(false);
+        else setLoginOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", closeTopModal);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeTopModal);
+      previousFocus?.focus();
+    };
+  }, [loginOpen, privacyOpen, selectedEvent]);
 
   async function googleLogin() {
     if (!auth) return;
@@ -405,6 +512,15 @@ function App() {
     setAdminMessage("저장되었습니다.");
   }
 
+  async function deleteEntry(
+    name: Exclude<CollectionName, "applications">,
+    id: string,
+  ) {
+    if (!db) return;
+    await deleteDoc(doc(db, name, id));
+    setAdminMessage("항목이 삭제되었습니다.");
+  }
+
   async function changeApplicationStatus(
     item: Application,
     status: Application["status"],
@@ -412,6 +528,12 @@ function App() {
     if (!db) return;
     await updateDoc(doc(db, "applications", item.id), { status });
     setAdminMessage("신청 상태가 변경되었습니다.");
+  }
+
+  async function deleteApplication(id: string) {
+    if (!db) return;
+    await deleteDoc(doc(db, "applications", id));
+    setAdminMessage("신청 내역이 삭제되었습니다.");
   }
 
   function enterAdmin() {
@@ -489,6 +611,11 @@ function App() {
         </header>
 
         <main id="top">
+          {contentError && (
+            <p className="content-alert" role="alert">
+              {contentError} 잠시 후 새로고침해 주세요.
+            </p>
+          )}
           {page === "/" && (
             <>
               <section className="hero section-wrap">
@@ -688,16 +815,23 @@ function App() {
                       <article className="product-card" key={item.id}>
                         <div
                           className={
-                            safeImageUrl(item.imageUrl || "")
+                            safeImageUrl(item.imageUrl || "") &&
+                            !failedProductImages.has(item.imageUrl)
                               ? "product-art has-product-image"
                               : "product-art"
                           }
                         >
-                          {safeImageUrl(item.imageUrl || "") ? (
+                          {safeImageUrl(item.imageUrl || "") &&
+                          !failedProductImages.has(item.imageUrl) ? (
                             <img
                               src={safeImageUrl(item.imageUrl || "")!}
                               alt={item.imageAlt || item.name}
                               loading="lazy"
+                              onError={() =>
+                                setFailedProductImages((current) =>
+                                  new Set(current).add(item.imageUrl),
+                                )
+                              }
                             />
                           ) : (
                             <>
@@ -974,6 +1108,7 @@ function App() {
                   <label>
                     이메일
                     <input
+                      autoFocus
                       type="email"
                       required
                       value={loginEmail}
@@ -1077,6 +1212,7 @@ function App() {
                   <label>
                     이름
                     <input
+                      autoFocus
                       required
                       minLength={2}
                       maxLength={80}
@@ -1164,7 +1300,11 @@ function App() {
                 {applicationMessage && (
                   <p
                     className={`form-message ${applicationMessage.startsWith("신청이") ? "success" : "error"}`}
-                    role="status"
+                    role={
+                      applicationMessage.startsWith("신청이")
+                        ? "status"
+                        : "alert"
+                    }
                   >
                     {applicationMessage}
                   </p>
@@ -1268,6 +1408,8 @@ function App() {
           onSavePrivacy={savePrivacy}
           onSaveEntry={saveEntry}
           onStatus={changeApplicationStatus}
+          onDeleteApplication={deleteApplication}
+          onDeleteEntry={deleteEntry}
           message={adminMessage}
           setMessage={setAdminMessage}
         />
@@ -1295,6 +1437,11 @@ type AdminProps = {
     id?: string,
   ) => Promise<void>;
   onStatus: (item: Application, status: Application["status"]) => Promise<void>;
+  onDeleteApplication: (id: string) => Promise<void>;
+  onDeleteEntry: (
+    name: Exclude<CollectionName, "applications">,
+    id: string,
+  ) => Promise<void>;
   message: string;
   setMessage: (message: string) => void;
 };
@@ -1315,6 +1462,8 @@ function AdminPanel(props: AdminProps) {
     onSavePrivacy,
     onSaveEntry,
     onStatus,
+    onDeleteApplication,
+    onDeleteEntry,
     message,
     setMessage,
   } = props;
@@ -1331,6 +1480,7 @@ function AdminPanel(props: AdminProps) {
     emptyEditors.history,
   );
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const collections: Record<
     Exclude<CollectionName, "applications">,
     Entry[]
@@ -1348,6 +1498,7 @@ function AdminPanel(props: AdminProps) {
   function changeTab(next: AdminTab) {
     setTab(next);
     setEditingId(null);
+    setDeletingId(null);
     setMessage("");
   }
   function startEdit(item?: Entry) {
@@ -1404,6 +1555,42 @@ function AdminPanel(props: AdminProps) {
       await onSavePrivacy(draftPrivacy);
     } catch {
       setMessage("저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeEntry(id: string) {
+    const name = tab as Exclude<CollectionName, "applications">;
+    setSaving(true);
+    try {
+      await onDeleteEntry(name, id);
+      if (editingId === id) setEditingId(null);
+      setDeletingId(null);
+    } catch {
+      setMessage("삭제에 실패했습니다. 관리자 권한을 확인해 주세요.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function togglePublished(item: Entry) {
+    const name = tab as Exclude<CollectionName, "applications">;
+    const { id, ...value } = item;
+    setSaving(true);
+    try {
+      await onSaveEntry(name, { ...value, published: !item.published }, id);
+    } catch {
+      setMessage("게시 상태 변경에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function removeApplication(id: string) {
+    setSaving(true);
+    try {
+      await onDeleteApplication(id);
+      setDeletingId(null);
+    } catch {
+      setMessage("신청 내역 삭제에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -1598,7 +1785,7 @@ function AdminPanel(props: AdminProps) {
               마세요.
             </p>
             {applications.length ? (
-              applications
+              [...applications]
                 .sort(
                   (a, b) =>
                     (b.createdAt?.toDate()?.getTime() || 0) -
@@ -1619,25 +1806,56 @@ function AdminPanel(props: AdminProps) {
                       <p>연락처: {item.phone}</p>
                       <p>신청 동기: {item.motivation || "없음"}</p>
                     </div>
-                    <select
-                      value={item.status}
-                      onChange={async (e) => {
-                        try {
-                          await onStatus(
-                            item,
-                            e.target.value as Application["status"],
-                          );
-                        } catch {
-                          setMessage("상태 변경에 실패했습니다.");
-                        }
-                      }}
-                      aria-label={`${item.name} 신청 상태`}
-                    >
-                      <option value="new">신규</option>
-                      <option value="reviewing">검토 중</option>
-                      <option value="accepted">승인</option>
-                      <option value="declined">거절</option>
-                    </select>
+                    <div className="application-actions">
+                      <select
+                        value={item.status}
+                        disabled={saving}
+                        onChange={async (e) => {
+                          setSaving(true);
+                          try {
+                            await onStatus(
+                              item,
+                              e.target.value as Application["status"],
+                            );
+                          } catch {
+                            setMessage("상태 변경에 실패했습니다.");
+                          } finally {
+                            setSaving(false);
+                          }
+                        }}
+                        aria-label={`${item.name} 신청 상태`}
+                      >
+                        <option value="new">신규</option>
+                        <option value="reviewing">검토 중</option>
+                        <option value="accepted">승인</option>
+                        <option value="declined">거절</option>
+                      </select>
+                      {deletingId === `application:${item.id}` ? (
+                        <span className="admin-delete-confirm">
+                          <button
+                            className="danger"
+                            disabled={saving}
+                            onClick={() => removeApplication(item.id)}
+                          >
+                            삭제 확인
+                          </button>
+                          <button onClick={() => setDeletingId(null)}>
+                            취소
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          className="icon-danger"
+                          disabled={saving}
+                          onClick={() =>
+                            setDeletingId(`application:${item.id}`)
+                          }
+                          aria-label={`${item.name} 신청 내역 삭제`}
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      )}
+                    </div>
                   </article>
                 ))
             ) : (
@@ -1834,9 +2052,52 @@ function AdminPanel(props: AdminProps) {
                             : ""}
                       </p>
                     </div>
-                    <button onClick={() => startEdit(item)}>
-                      수정 <ArrowUpRight size={17} />
-                    </button>
+                    <div className="admin-row-actions">
+                      <button
+                        disabled={saving}
+                        onClick={() => togglePublished(item)}
+                        aria-label={`${item.published ? "비공개로 전환" : "게시"}`}
+                      >
+                        {item.published ? (
+                          <EyeOff size={17} />
+                        ) : (
+                          <Eye size={17} />
+                        )}
+                        {item.published ? "비공개" : "게시"}
+                      </button>
+                      <button disabled={saving} onClick={() => startEdit(item)}>
+                        수정 <ArrowUpRight size={17} />
+                      </button>
+                      {deletingId === item.id ? (
+                        <span className="admin-delete-confirm">
+                          <button
+                            className="danger"
+                            disabled={saving}
+                            onClick={() => removeEntry(item.id)}
+                          >
+                            삭제 확인
+                          </button>
+                          <button onClick={() => setDeletingId(null)}>
+                            취소
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          className="icon-danger"
+                          disabled={saving}
+                          onClick={() => setDeletingId(item.id)}
+                          aria-label={`${
+                            "title" in item
+                              ? String(item.title)
+                              : "name" in item
+                                ? String(item.name)
+                                : "항목"
+                          } 삭제`}
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      )}
+                    </div>
                   </article>
                 ))
               ) : (

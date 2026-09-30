@@ -40,6 +40,14 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #8fa0ff;
+  outline-offset: 3px;
+}
 .site-shell {
   overflow: hidden;
 }
@@ -1208,6 +1216,15 @@ button:disabled {
 .form-message.success {
   color: #a8efc2;
 }
+.content-alert {
+  width: min(1180px, calc(100% - 40px));
+  margin: 18px auto 0;
+  padding: 13px 16px;
+  border: 1px solid rgba(255, 158, 163, 0.35);
+  background: rgba(112, 35, 44, 0.2);
+  color: #ffc4c7;
+  font-size: 13px;
+}
 .setup-note {
   background: #222b43;
   color: #bfc8e5;
@@ -1400,6 +1417,28 @@ button:disabled {
   font-size: 12px;
   white-space: nowrap;
 }
+.admin-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 340px;
+}
+.admin-row-actions button:hover {
+  color: #fff;
+}
+.admin-row-actions .icon-danger,
+.admin-row-actions .danger {
+  color: #ff9b9b;
+}
+.admin-delete-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid #4a3a43;
+}
 .admin-pill {
   display: inline-block;
   background: #363b4a;
@@ -1484,6 +1523,27 @@ button:disabled {
   border: 1px solid #4a5265;
   padding: 9px;
   white-space: nowrap;
+}
+.application-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.application-actions button {
+  border: 0;
+  background: none;
+  color: #b9c5ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.application-actions .icon-danger,
+.application-actions .danger {
+  color: #ff9b9b;
 }
 .privacy-modal {
   width: min(100%, 670px);
@@ -1789,8 +1849,26 @@ button:disabled {
   .application-record {
     flex-direction: column;
   }
+  .admin-row {
+    flex-direction: column;
+  }
+  .admin-row-actions {
+    justify-content: flex-start;
+    max-width: none;
+  }
   .form-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 @media (max-width: 440px) {
